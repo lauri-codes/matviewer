@@ -310,7 +310,7 @@ System.register(["./viewer"], function (exports_1, context_1) {
                  *
                  *     - cell
                  *     - scaledPositions
-                 *     - labels
+                 *     - atomicNumbers
                  *     - primitiveCell (optional)
                  *     - pbc (optional)
                  *     - unit (optional): An unit cell from which a larger piece is
@@ -321,8 +321,9 @@ System.register(["./viewer"], function (exports_1, context_1) {
                     // Check that the received data is OK.
                     let primitiveCell = data["primitiveCell"];
                     let cell = data["cell"];
-                    let positions = data["scaledPositions"];
-                    let labels = data["labels"];
+                    let scaledPositions = data["scaledPositions"];
+                    let positions = data["positions"];
+                    let labels = data["atomicNumbers"];
                     let periodicity = data["pbc"];
                     let unitData = data["unit"];
                     this.tags = data["tags"];
@@ -331,13 +332,25 @@ System.register(["./viewer"], function (exports_1, context_1) {
                         console.log("No normalized cell given to the structure viewer");
                         return false;
                     }
-                    else if (!positions) {
+                    else if (!scaledPositions && !positions) {
                         console.log("No atom positions given to the structure viewer");
                         return false;
                     }
                     else if (!labels) {
                         console.log("No atom labels given to the structure viewer");
                         return false;
+                    }
+                    if (positions) {
+                        if (positions.length != labels.length) {
+                            console.log("The number of positions does not match the number of labels.");
+                            return false;
+                        }
+                    }
+                    if (scaledPositions) {
+                        if (scaledPositions.length != labels.length) {
+                            console.log("The number of scaled positions does not match the number of labels.");
+                            return false;
+                        }
                     }
                     // Is the structure allowed to be repeated
                     if ((classification == "Surface") || (classification == "Material2D") || (classification == "Class2D")) {
@@ -403,37 +416,46 @@ System.register(["./viewer"], function (exports_1, context_1) {
                     let relPos = [];
                     let cartPos = [];
                     // Create a set of relative and cartesian positions
-                    for (let i = 0; i < positions.length; ++i) {
-                        let pos = positions[i];
-                        let iRelPos = new THREE.Vector3().fromArray(pos);
-                        // Wrap the positions
-                        let x = iRelPos.x;
-                        let y = iRelPos.y;
-                        let z = iRelPos.z;
-                        if (this.settings.wrap) {
-                            if (periodicity[0] && this.almostEqual(1, x, this.basisVectors[0], this.wrapTolerance)) {
-                                x -= 1;
+                    if (scaledPositions !== undefined) {
+                        for (let i = 0; i < scaledPositions.length; ++i) {
+                            let pos = scaledPositions[i];
+                            let iRelPos = new THREE.Vector3().fromArray(pos);
+                            // Wrap the positions
+                            let x = iRelPos.x;
+                            let y = iRelPos.y;
+                            let z = iRelPos.z;
+                            if (this.settings.wrap) {
+                                if (periodicity[0] && this.almostEqual(1, x, this.basisVectors[0], this.wrapTolerance)) {
+                                    x -= 1;
+                                }
+                                if (periodicity[1] && this.almostEqual(1, y, this.basisVectors[1], this.wrapTolerance)) {
+                                    y -= 1;
+                                }
+                                if (periodicity[2] && this.almostEqual(1, z, this.basisVectors[2], this.wrapTolerance)) {
+                                    z -= 1;
+                                }
                             }
-                            if (periodicity[1] && this.almostEqual(1, y, this.basisVectors[1], this.wrapTolerance)) {
-                                y -= 1;
-                            }
-                            if (periodicity[2] && this.almostEqual(1, z, this.basisVectors[2], this.wrapTolerance)) {
-                                z -= 1;
-                            }
+                            iRelPos = new THREE.Vector3(x, y, z);
+                            relPos.push(iRelPos);
+                            let iCartPos = new THREE.Vector3();
+                            iCartPos.add(this.basisVectors[0].clone().multiplyScalar(iRelPos.x));
+                            iCartPos.add(this.basisVectors[1].clone().multiplyScalar(iRelPos.y));
+                            iCartPos.add(this.basisVectors[2].clone().multiplyScalar(iRelPos.z));
+                            cartPos.push(iCartPos);
                         }
-                        iRelPos = new THREE.Vector3(x, y, z - 0.3);
-                        //z = (z-0.65) % 1;
-                        //if (z < 0) {
-                        //z += 1;
-                        //}
-                        //console.log(z);
-                        iRelPos = new THREE.Vector3(x, y, z);
-                        relPos.push(iRelPos);
-                        let iCartPos = new THREE.Vector3();
-                        iCartPos.add(this.basisVectors[0].clone().multiplyScalar(iRelPos.x));
-                        iCartPos.add(this.basisVectors[1].clone().multiplyScalar(iRelPos.y));
-                        iCartPos.add(this.basisVectors[2].clone().multiplyScalar(iRelPos.z));
-                        cartPos.push(iCartPos);
+                    }
+                    else if (positions !== undefined) {
+                        for (let i = 0; i < positions.length; ++i) {
+                            let pos = positions[i];
+                            let iCartPos = new THREE.Vector3().fromArray(pos);
+                            cartPos.push(iCartPos);
+                            // Calculate the relative positions
+                            let cellMatrix = new THREE.Matrix3();
+                            cellMatrix.set(cell[0][0], cell[0][1], cell[0][2], cell[1][0], cell[1][1], cell[1][2], cell[2][0], cell[2][1], cell[2][2]);
+                            let cellInverse = new THREE.Matrix3().getInverse(cellMatrix);
+                            let iRelPos = iCartPos.clone().applyMatrix3(cellInverse);
+                            relPos.push(iRelPos);
+                        }
                     }
                     // Determine the periodicity and setup the vizualization accordingly
                     let nPeriodic = 0;
@@ -713,7 +735,6 @@ System.register(["./viewer"], function (exports_1, context_1) {
                  * Hides or shows the cell.
                  */
                 toggleCell(value) {
-                    console.log(value);
                     if (this.convCell !== undefined) {
                         this.convCell.visible = value;
                     }
@@ -1326,7 +1347,6 @@ System.register(["./viewer"], function (exports_1, context_1) {
                  * @param labels - The element numbers for the atoms
                  */
                 createAtoms(relPositions, labels, duplicate) {
-                    console.log(duplicate);
                     this.elements = {};
                     this.atomPos = [];
                     this.atomNumbers = [];
