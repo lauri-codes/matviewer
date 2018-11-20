@@ -17,7 +17,6 @@ System.register(["./viewer"], function (exports_1, context_1) {
                 constructor() {
                     super(...arguments);
                     this.fitMargin = 0.5; // The scene containing the information that is overlayed on top of the BZ
-                    this.radiusFactor = 1; // The factor that is used to scale the covalent radii of the atoms
                     this.axisLabels = []; // List of all labels in the view.
                     this.wrapTolerance = 0.05; // Tolerance of the wrapping in Angstroms
                     this.tagColorMap = {
@@ -292,7 +291,8 @@ System.register(["./viewer"], function (exports_1, context_1) {
                         showCopies: true,
                         showCell: true,
                         wrap: true,
-                        showUnit: true
+                        showUnit: true,
+                        radiusScale: 1
                     };
                     // If value defined in options, replace the default setting
                     for (let property in options) {
@@ -308,26 +308,26 @@ System.register(["./viewer"], function (exports_1, context_1) {
                  * @param {Object} data -  The structure data. Contains the following
                  * attributes:
                  *
-                 *     - normalizedCell
-                 *     - positions
+                 *     - cell
+                 *     - scaledPositions
                  *     - labels
                  *     - primitiveCell (optional)
-                 *     - periodicity (optional)
+                 *     - pbc (optional)
                  *     - unit (optional): An unit cell from which a larger piece is
                  *          composed of
-                 *     -tags: The indices for certain special atoms in the system.
+                 *     - tags (optional): The indices for certain special atoms in the system.
                  */
                 setupVisualization(data) {
                     // Check that the received data is OK.
                     let primitiveCell = data["primitiveCell"];
-                    let normalizedCell = data["normalizedCell"];
-                    let positions = data["positions"];
+                    let cell = data["cell"];
+                    let positions = data["scaledPositions"];
                     let labels = data["labels"];
-                    let periodicity = data["periodicity"];
+                    let periodicity = data["pbc"];
                     let unitData = data["unit"];
                     this.tags = data["tags"];
                     let classification = data["classification"];
-                    if (!normalizedCell) {
+                    if (!cell) {
                         console.log("No normalized cell given to the structure viewer");
                         return false;
                     }
@@ -395,11 +395,11 @@ System.register(["./viewer"], function (exports_1, context_1) {
                     this.cellVectorLines = new THREE.Object3D();
                     this.angleArcs = new THREE.Object3D();
                     this.root.add(this.cellVectorLines);
-                    this.root.add(this.angleArcs);
+                    //this.root.add(this.angleArcs);
                     this.root.add(this.atoms);
                     this.root.add(this.bonds);
                     this.sceneStructure.add(this.root);
-                    this.basisVectors = this.createBasisVectors(normalizedCell);
+                    this.basisVectors = this.createBasisVectors(cell);
                     let relPos = [];
                     let cartPos = [];
                     // Create a set of relative and cartesian positions
@@ -527,6 +527,7 @@ System.register(["./viewer"], function (exports_1, context_1) {
                     // Setup dat.gui settings window
                     this.settingsHandler = function () {
                         let showParam = this.settings.showParam;
+                        let showCell = this.settings.showCell;
                         let showLegend = this.settings.showLegend;
                         let showBonds = this.settings.showBonds;
                         let showShadows = this.settings.showShadows;
@@ -534,6 +535,7 @@ System.register(["./viewer"], function (exports_1, context_1) {
                         let showVacancies = this.settings.showVacancies;
                         let showOptions = this.settings.showOptions;
                         this.toggleLatticeParameters(showParam);
+                        this.toggleCell(showCell);
                         this.toggleElementLegend(showLegend);
                         this.toggleBonds(showBonds);
                         this.toggleShadows(showShadows);
@@ -547,6 +549,7 @@ System.register(["./viewer"], function (exports_1, context_1) {
                     this.datGui.close();
                     this.rootElement.appendChild(this.datGui.domElement);
                     this.datGui.add(this.settings, "showParam", true).name("Lattice parameters").onChange(this.settingsHandler);
+                    this.datGui.add(this.settings, "showCell", true).name("Cell").onChange(this.settingsHandler);
                     this.datGui.add(this.settings, "showLegend", true).name("Element labels").onChange(this.settingsHandler);
                     this.datGui.add(this.settings, "showBonds", true).name("Bonds").onChange(this.settingsHandler);
                     this.datGui.add(this.settings, "showShadows", false).name("Shadows").onChange(this.settingsHandler);
@@ -707,6 +710,19 @@ System.register(["./viewer"], function (exports_1, context_1) {
                     this.render();
                 }
                 /**
+                 * Hides or shows the cell.
+                 */
+                toggleCell(value) {
+                    console.log(value);
+                    if (this.convCell !== undefined) {
+                        this.convCell.visible = value;
+                    }
+                    if (this.primCell !== undefined) {
+                        this.primCell.visible = value;
+                    }
+                    this.render();
+                }
+                /**
                  * Hides or shows the bonds.
                  */
                 toggleBonds(value) {
@@ -714,7 +730,7 @@ System.register(["./viewer"], function (exports_1, context_1) {
                     this.render();
                 }
                 /**
-                 * Hides or shows the shadows. Not working properly, to fix if needed.
+                 * Hides or shows the shadows.
                  */
                 toggleShadows(value) {
                     this.renderer.shadowMapEnabled = value;
@@ -794,6 +810,7 @@ System.register(["./viewer"], function (exports_1, context_1) {
                     this.latticeParameters = new THREE.Object3D();
                     this.axisLabels = [];
                     this.sceneInfo.add(this.latticeParameters);
+                    this.sceneInfo.add(this.angleArcs);
                     let nPeriod = 0;
                     let infoColor = 0x000000;
                     for (let iDim = 0; iDim < periodicity.length; ++iDim) {
@@ -1042,8 +1059,9 @@ System.register(["./viewer"], function (exports_1, context_1) {
                  * Create the conventional cell
                  *
                  */
-                createConventionalCell(periodicity) {
+                createConventionalCell(periodicity, visible) {
                     let cell = this.createCell(new THREE.Vector3(), this.basisVectors, periodicity, 0x000000, 1.5, false);
+                    cell.visible = visible;
                     this.convCell = cell;
                     this.root.add(this.convCell);
                 }
@@ -1051,9 +1069,10 @@ System.register(["./viewer"], function (exports_1, context_1) {
                  * Create the primitive cell
                  *
                  */
-                createPrimitiveCell(periodicity) {
+                createPrimitiveCell(periodicity, visible) {
                     if (this.primitiveVectors != null) {
                         let cell = this.createCell(new THREE.Vector3(), this.primitiveVectors, periodicity, 0x000000, 1.5, true);
+                        cell.visible = visible;
                         this.primCell = cell;
                         this.root.add(this.primCell);
                     }
@@ -1388,8 +1407,8 @@ System.register(["./viewer"], function (exports_1, context_1) {
                                 let num1 = this.atomNumbers[i];
                                 let num2 = this.atomNumbers[j];
                                 let distance = pos2.clone().sub(pos1).length();
-                                let radii1 = this.elementRadii[num1];
-                                let radii2 = this.elementRadii[num2];
+                                let radii1 = this.settings.radiusScale * this.elementRadii[num1];
+                                let radii2 = this.settings.radiusScale * this.elementRadii[num2];
                                 if (distance <= 1.1 * (radii1 + radii2)) {
                                     this.addBond(pos1, pos2);
                                 }
@@ -1444,7 +1463,7 @@ System.register(["./viewer"], function (exports_1, context_1) {
                     if (!exists) {
                         // Calculate the amount of segments that are needed to reach a
                         // certain angle for the ball surface segements
-                        let radius = this.radiusFactor * this.elementRadii[atomicNumber];
+                        let radius = this.settings.radiusScale * this.elementRadii[atomicNumber];
                         let targetAngle = 165;
                         let nSegments = Math.ceil(360 / (180 - targetAngle));
                         // Atom
@@ -1533,10 +1552,8 @@ System.register(["./viewer"], function (exports_1, context_1) {
                  * Setup the view for 0D systems (atoms, molecules).
                  */
                 setup0D(relPos, cartPos, labels) {
-                    if (this.settings.showCell) {
-                        this.createConventionalCell([false, false, false]);
-                        this.createPrimitiveCell([false, false, false]);
-                    }
+                    this.createConventionalCell([false, false, false], this.settings.showCell);
+                    this.createPrimitiveCell([false, false, false], this.settings.showCell);
                     this.createAtoms(relPos, labels, false);
                     this.createBonds();
                     this.createCornerPoints(new THREE.Vector3(), this.basisVectors);
@@ -1657,10 +1674,8 @@ System.register(["./viewer"], function (exports_1, context_1) {
                     }
                     relPos.push.apply(relPos, newPos);
                     labels.push.apply(labels, newLabels);
-                    if (this.settings.showCell) {
-                        this.createConventionalCell(periodicity);
-                        this.createPrimitiveCell(periodicity);
-                    }
+                    this.createConventionalCell(periodicity, this.settings.showCell);
+                    this.createPrimitiveCell(periodicity, this.settings.showCell);
                     this.createAtoms(relPos, labels, false);
                     this.createBonds();
                     // Set extended cornerpoints
@@ -1678,10 +1693,8 @@ System.register(["./viewer"], function (exports_1, context_1) {
                  * Setup the view for 3D systems (crystals)
                  */
                 setup3D(relPos, cartPos, labels) {
-                    if (this.settings.showCell) {
-                        this.createConventionalCell([true, true, true]);
-                        this.createPrimitiveCell([true, true, true]);
-                    }
+                    this.createConventionalCell([true, true, true], this.settings.showCell);
+                    this.createPrimitiveCell([true, true, true], this.settings.showCell);
                     this.createAtoms(relPos, labels, this.settings.showCopies);
                     this.createBonds();
                     this.createCornerPoints(new THREE.Vector3(), this.basisVectors);

@@ -27,12 +27,12 @@ export class StructureViewer extends Viewer {
     vizBasisVectors:any;                  // The basis vectors for the final visualized system
     vizOrigin:any;                        // The origin for the final visualized system
     fitMargin:number = 0.5;               // The scene containing the information that is overlayed on top of the BZ
-    radiusFactor:number = 1;              // The factor that is used to scale the covalent radii of the atoms
+    //radiusFactor:number = 1;              // The factor that is used to scale the covalent radii of the atoms
 
     lights:any[];                         // Contains the lights in the scene
     bondFills:any[];                      // Contains the bulk of the bonds
     atomFills:any[];                      // Contains the bulk of the atoms
-    atomOutlines:any[];                    // Contains the outlines of the atoms
+    atomOutlines:any[];                   // Contains the outlines of the atoms
     cellVectorLines:any;
     angleArcs:any;
     axisLabels:any[] = [];                // List of all labels in the view.
@@ -77,7 +77,8 @@ export class StructureViewer extends Viewer {
             showCopies: true,
             showCell: true,
             wrap: true,
-            showUnit: true
+            showUnit: true,
+            radiusScale: 1
         };
 
         // If value defined in options, replace the default setting
@@ -96,27 +97,27 @@ export class StructureViewer extends Viewer {
      * @param {Object} data -  The structure data. Contains the following
      * attributes:
      *
-     *     - normalizedCell
-     *     - positions
+     *     - cell
+     *     - scaledPositions
      *     - labels
      *     - primitiveCell (optional)
-     *     - periodicity (optional)
+     *     - pbc (optional)
      *     - unit (optional): An unit cell from which a larger piece is
      *          composed of
-     *     -tags: The indices for certain special atoms in the system.
+     *     - tags (optional): The indices for certain special atoms in the system.
      */
     setupVisualization(data): boolean {
 
         // Check that the received data is OK.
         let primitiveCell = data["primitiveCell"];
-        let normalizedCell = data["normalizedCell"];
-        let positions = data["positions"];
+        let cell = data["cell"];
+        let positions = data["scaledPositions"];
         let labels = data["labels"];
-        let periodicity = data["periodicity"];
+        let periodicity = data["pbc"];
         let unitData = data["unit"];
         this.tags = data["tags"];
         let classification = data["classification"];
-        if (!normalizedCell) {
+        if (!cell) {
             console.log("No normalized cell given to the structure viewer")
             return false;
         } else if (!positions) {
@@ -191,11 +192,11 @@ export class StructureViewer extends Viewer {
         this.cellVectorLines = new THREE.Object3D();
         this.angleArcs = new THREE.Object3D();
         this.root.add(this.cellVectorLines);
-        this.root.add(this.angleArcs);
+        //this.root.add(this.angleArcs);
         this.root.add(this.atoms);
         this.root.add(this.bonds);
         this.sceneStructure.add(this.root);
-        this.basisVectors = this.createBasisVectors(normalizedCell);
+        this.basisVectors = this.createBasisVectors(cell);
         let relPos = [];
         let cartPos = [];
 
@@ -333,6 +334,7 @@ export class StructureViewer extends Viewer {
         // Setup dat.gui settings window
         this.settingsHandler = function( ) {
             let showParam = this.settings.showParam;
+            let showCell = this.settings.showCell;
             let showLegend = this.settings.showLegend;
             let showBonds = this.settings.showBonds;
             let showShadows = this.settings.showShadows;
@@ -340,6 +342,7 @@ export class StructureViewer extends Viewer {
             let showVacancies = this.settings.showVacancies;
             let showOptions = this.settings.showOptions;
             this.toggleLatticeParameters(showParam);
+            this.toggleCell(showCell);
             this.toggleElementLegend(showLegend);
             this.toggleBonds(showBonds);
             this.toggleShadows(showShadows);
@@ -353,6 +356,7 @@ export class StructureViewer extends Viewer {
         this.datGui.close();
         this.rootElement.appendChild(this.datGui.domElement)
         this.datGui.add( this.settings, "showParam", true ).name("Lattice parameters").onChange( this.settingsHandler );
+        this.datGui.add( this.settings, "showCell", true ).name("Cell").onChange( this.settingsHandler );
         this.datGui.add( this.settings, "showLegend", true ).name("Element labels").onChange( this.settingsHandler );
         this.datGui.add( this.settings, "showBonds", true ).name("Bonds").onChange( this.settingsHandler );
         this.datGui.add( this.settings, "showShadows", false ).name("Shadows").onChange( this.settingsHandler );
@@ -522,6 +526,20 @@ export class StructureViewer extends Viewer {
     }
 
     /**
+     * Hides or shows the cell.
+     */
+    toggleCell(value:boolean) {
+        console.log(value);
+        if (this.convCell !== undefined) {
+            this.convCell.visible = value;
+        }
+        if (this.primCell !== undefined) {
+            this.primCell.visible = value;
+        }
+        this.render();
+    }
+
+    /**
      * Hides or shows the bonds.
      */
     toggleBonds(value:boolean) {
@@ -530,7 +548,7 @@ export class StructureViewer extends Viewer {
     }
 
     /**
-     * Hides or shows the shadows. Not working properly, to fix if needed.
+     * Hides or shows the shadows.
      */
     toggleShadows(value:boolean) {
 
@@ -618,6 +636,7 @@ export class StructureViewer extends Viewer {
         this.latticeParameters = new THREE.Object3D();
         this.axisLabels = []
         this.sceneInfo.add(this.latticeParameters);
+        this.sceneInfo.add(this.angleArcs);
         let nPeriod = 0;
         let infoColor = 0x000000;
         for (let iDim=0; iDim<periodicity.length; ++iDim) {
@@ -894,8 +913,9 @@ export class StructureViewer extends Viewer {
      * Create the conventional cell
      *
      */
-    createConventionalCell(periodicity) {
+    createConventionalCell(periodicity, visible) {
         let cell = this.createCell(new THREE.Vector3(), this.basisVectors, periodicity, 0x000000, 1.5, false);
+        cell.visible = visible;
         this.convCell = cell;
         this.root.add(this.convCell);
     }
@@ -904,9 +924,10 @@ export class StructureViewer extends Viewer {
      * Create the primitive cell
      *
      */
-    createPrimitiveCell(periodicity) {
+    createPrimitiveCell(periodicity, visible) {
         if (this.primitiveVectors != null) {
             let cell = this.createCell(new THREE.Vector3(), this.primitiveVectors, periodicity, 0x000000, 1.5, true);
+            cell.visible = visible;
             this.primCell = cell;
             this.root.add(this.primCell);
         }
@@ -1302,8 +1323,8 @@ export class StructureViewer extends Viewer {
                     let num1 = this.atomNumbers[i];
                     let num2 = this.atomNumbers[j];
                     let distance = pos2.clone().sub(pos1).length()
-                    let radii1 = this.elementRadii[num1]
-                    let radii2 = this.elementRadii[num2]
+                    let radii1 = this.settings.radiusScale*this.elementRadii[num1]
+                    let radii2 = this.settings.radiusScale*this.elementRadii[num2]
                     if (distance <= 1.1*(radii1 + radii2)) {
                         this.addBond(pos1, pos2);
                     }
@@ -1362,7 +1383,7 @@ export class StructureViewer extends Viewer {
         if (!exists) {
             // Calculate the amount of segments that are needed to reach a
             // certain angle for the ball surface segements
-            let radius = this.radiusFactor*this.elementRadii[atomicNumber];
+            let radius = this.settings.radiusScale*this.elementRadii[atomicNumber];
             let targetAngle = 165;
             let nSegments = Math.ceil(360/(180-targetAngle));
 
@@ -1464,10 +1485,8 @@ export class StructureViewer extends Viewer {
      * Setup the view for 0D systems (atoms, molecules).
      */
     setup0D(relPos, cartPos, labels) {
-        if (this.settings.showCell) {
-            this.createConventionalCell([false, false, false]);
-            this.createPrimitiveCell([false, false, false]);
-        }
+        this.createConventionalCell([false, false, false], this.settings.showCell);
+        this.createPrimitiveCell([false, false, false], this.settings.showCell);
         this.createAtoms(relPos, labels, false);
         this.createBonds();
         this.createCornerPoints(new THREE.Vector3(), this.basisVectors);
@@ -1611,10 +1630,8 @@ export class StructureViewer extends Viewer {
         relPos.push.apply(relPos, newPos);
         labels.push.apply(labels, newLabels);
 
-        if (this.settings.showCell) {
-            this.createConventionalCell(periodicity);
-            this.createPrimitiveCell(periodicity);
-        }
+        this.createConventionalCell(periodicity, this.settings.showCell);
+        this.createPrimitiveCell(periodicity, this.settings.showCell);
         this.createAtoms(relPos, labels, false);
         this.createBonds();
 
@@ -1635,10 +1652,9 @@ export class StructureViewer extends Viewer {
      * Setup the view for 3D systems (crystals)
      */
     setup3D(relPos, cartPos, labels) {
-        if (this.settings.showCell) {
-            this.createConventionalCell([true, true, true]);
-            this.createPrimitiveCell([true, true, true]);
-        }
+        this.createConventionalCell([true, true, true], this.settings.showCell);
+        this.createPrimitiveCell([true, true, true], this.settings.showCell);
+
         this.createAtoms(relPos, labels, this.settings.showCopies);
         this.createBonds();
         this.createCornerPoints(new THREE.Vector3(), this.basisVectors);
