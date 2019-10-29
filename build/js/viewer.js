@@ -23,6 +23,7 @@ System.register([], function (exports_1, context_1) {
                     this.scenes = []; // A list of scenes that are rendered
                     this.cameraWidth = 10.0; // The default "width" of the camera
                     this.fitMargin = 10; // The margin that is left between the cell corners and the screen edge in pixels
+                    this.options = {}; // Options for the viewer. Can be e.g. used to control which settings are enabled
                     this.handleSettings(options);
                     this.setupRootElement();
                     this.setupRenderer();
@@ -33,13 +34,19 @@ System.register([], function (exports_1, context_1) {
                     this.setupHostElement(hostElement);
                     //window.addEventListener('resize', this.onWindowResize.bind(this), false);
                 }
+                handleSettings(opt) {
+                    // Controls settings
+                    this.options["enableZoom"] = opt["enableZoom"] === undefined ? true : opt["enableZoom"];
+                    this.options["enableRotate"] = opt["enableRotate"] === undefined ? true : opt["enableRotate"];
+                    this.options["enablePan"] = opt["enablePan"] === undefined ? true : opt["enablePan"];
+                }
                 /**
                  * This function will clear the old view and visualize the new Brilloun
                  * zone based on the given data.
                  *
                  * @param {object} data object holding the visualized data.
                  */
-                load(data, showOptions = true) {
+                load(data) {
                     // Clear all the old data
                     this.clear();
                     // Reconstruct the visualization
@@ -52,6 +59,27 @@ System.register([], function (exports_1, context_1) {
                     this.render();
                     this.animate();
                     return valid;
+                }
+                /**
+                 * Loads visuzalization data from a JSON url.
+                 *
+                 * @param {string} url Path to the json resource.
+                 */
+                loadJSON(url) {
+                    // Open file
+                    var xhr = new XMLHttpRequest();
+                    xhr.onreadystatechange = () => {
+                        if (xhr.readyState === XMLHttpRequest.DONE) {
+                            if (xhr.status === 200) {
+                                return this.load(JSON.parse(xhr.responseText));
+                            }
+                            else {
+                                return false;
+                            }
+                        }
+                    };
+                    xhr.open("GET", url, true);
+                    xhr.send();
                 }
                 /**
                  * This function can be used to setup any static assets in the
@@ -180,7 +208,7 @@ System.register([], function (exports_1, context_1) {
                     this.renderer.shadowMapEnabled = false;
                     this.renderer.shadowMapType = THREE.PCFSoftShadowMap;
                     this.renderer.setSize(this.rootElement.clientWidth, this.rootElement.clientHeight);
-                    this.renderer.setClearColor(0xffffff, 1);
+                    this.renderer.setClearColor(0xffffff, 0); // The clear color is set to fully transparent to support custom backgrounds
                     this.rootElement.appendChild(this.renderer.domElement);
                     // This is set so that multiple scenes can be used, see
                     // http://stackoverflow.com/questions/12666570/how-to-change-the-zorder-of-object-with-threejs/12666937#12666937
@@ -243,8 +271,10 @@ System.register([], function (exports_1, context_1) {
                     controls.rotateSpeed = this.rotateSpeed;
                     controls.zoomSpeed = this.zoomSpeed;
                     controls.panSpeed = this.panSpeed;
-                    controls.noZoom = false;
-                    controls.noPan = false;
+                    console.log(this.options["enableZoom"]);
+                    controls.enableZoom = this.options["enableZoom"];
+                    controls.enablePan = this.options["enablePan"];
+                    controls.enableRotate = this.options["enableRotate"];
                     controls.staticMoving = true;
                     controls.dynamicDampingFactor = 0.25;
                     controls.keys = [65, 83, 68];

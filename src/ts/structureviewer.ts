@@ -64,31 +64,25 @@ export class StructureViewer extends Viewer {
     /**
      * Used to setup the visualization according to the given options.
      */
-    handleSettings(options:Object) {
-        let finalSettings = {
-            showParam: true,
-            showLegend: true,
-            showBonds: true,
-            showShadows: false,
-            showTags: false,
-            showVacancies: false,
-            showOptions: true,
-            allowRepeat: true,
-            showCopies: true,
-            showCell: true,
-            wrap: true,
-            showUnit: true,
-            radiusScale: 1
-        };
+    handleSettings(opt:Object) {
 
-        // If value defined in options, replace the default setting
-        for (let property in options) {
-            if (options.hasOwnProperty(property)) {
-                finalSettings[property] = options[property];
-            }
-        }
+        // Controls settings
+        this.options["showParam"]     = opt["showParam"] === undefined     ? true  : opt["showParam"];
+        this.options["showLegend"]    = opt["showLegend"] === undefined    ? true  : opt["showLegend"];
+        this.options["showBonds"]     = opt["showBonds"] === undefined     ? true  : opt["showBonds"];
+        this.options["showShadows"]   = opt["showShadows"] === undefined   ? false : opt["showShadows"];
+        this.options["showTags"]      = opt["showTags"] === undefined      ? false : opt["showTags"];
+        this.options["showVacancies"] = opt["showVacancies"] === undefined ? false : opt["showVacancies"];
+        this.options["showOptions"]   = opt["showOptions"] === undefined   ? true  : opt["showOptions"];
+        this.options["allowRepeat"]   = opt["allowRepeat"] === undefined   ? true  : opt["allowRepeat"];
+        this.options["showCopies"]    = opt["showCopies"] === undefined    ? false : opt["showCopies"];
+        this.options["showCell"]      = opt["showCell"] === undefined      ? true  : opt["showCell"];
+        this.options["wrap"]          = opt["wrap"] === undefined          ? true  : opt["wrap"];
+        this.options["showUnit"]      = opt["showUnit"] === undefined      ? true  : opt["showUnit"];
+        this.options["radiusScale"]   = opt["radiusScale"] === undefined   ? 1     : opt["radiusScale"];
 
-        this.settings = finalSettings;
+        // Handle base class settings
+        super.handleSettings(opt);
     }
 
     /**
@@ -113,7 +107,8 @@ export class StructureViewer extends Viewer {
         let cell = data["cell"];
         let scaledPositions = data["scaledPositions"];
         let positions = data["positions"];
-        let labels = data["atomicNumbers"];
+        let atomicNumbers = data["atomicNumbers"];
+        let chemicalSymbols = data["chemicalSymbols"];
         let periodicity = data["pbc"];
         let unitData = data["unit"];
         this.tags = data["tags"];
@@ -121,21 +116,31 @@ export class StructureViewer extends Viewer {
         if (!cell) {
             console.log("No normalized cell given to the structure viewer")
             return false;
-        } else if (!scaledPositions && !positions) {
+        }
+        if (!scaledPositions && !positions) {
             console.log("No atom positions given to the structure viewer")
             return false;
-        } else if (!labels) {
-            console.log("No atom labels given to the structure viewer")
+        }
+        if (!atomicNumbers && !chemicalSymbols) {
+            console.log("No atomicNumbers or chemicalSymbols given to the structure viewer.")
             return false;
         }
+
+        // Determine the atomicNumbers if not given
+        if (!atomicNumbers) {
+            atomicNumbers = chemicalSymbols.map(symb => {
+                return this.elementNumbers[symb];
+            });
+        };
+
         if (positions) {
-            if (positions.length != labels.length) {
+            if (positions.length != atomicNumbers.length) {
                 console.log("The number of positions does not match the number of labels.")
                 return false;
             }
         }
         if (scaledPositions) {
-            if (scaledPositions.length != labels.length) {
+            if (scaledPositions.length != atomicNumbers.length) {
                 console.log("The number of scaled positions does not match the number of labels.")
                 return false;
             }
@@ -143,14 +148,14 @@ export class StructureViewer extends Viewer {
 
         // Is the structure allowed to be repeated
         if ((classification == "Surface") || (classification == "Material2D") || (classification == "Class2D")) {
-            this.settings.allowRepeat = false;
-            this.settings.wrap = false;
-            this.settings.showCopies = false;
+            this.options.allowRepeat = false;
+            this.options.wrap = false;
+            this.options.showCopies = false;
         }
 
         // If the periodic unit is given, initialize another instance of the
         // StructureViewer for it
-        if (this.settings.showUnit) {
+        if (this.options.showUnit) {
             if (!((unitData == undefined) || (unitData == null))) {
 
                 let unitDiv1 = document.createElement('div');
@@ -223,7 +228,7 @@ export class StructureViewer extends Viewer {
                 let x = iRelPos.x;
                 let y = iRelPos.y;
                 let z = iRelPos.z;
-                if (this.settings.wrap) {
+                if (this.options.wrap) {
                     if (periodicity[0] && this.almostEqual(1, x, this.basisVectors[0], this.wrapTolerance)) {
                         x -= 1;
                     }
@@ -292,16 +297,16 @@ export class StructureViewer extends Viewer {
             }
         }
         if (nPeriodic === 0) {
-            this.setup0D(relPos, cartPos, labels);
+            this.setup0D(relPos, cartPos, atomicNumbers);
         }
         if (nPeriodic === 1) {
-            this.setup1D(relPos, cartPos, labels, periodicity, periodicIndices);
+            this.setup1D(relPos, cartPos, atomicNumbers, periodicity, periodicIndices);
         }
         else if (nPeriodic === 2) {
-            this.setup2D(relPos, cartPos, labels, periodicity, periodicIndices);
+            this.setup2D(relPos, cartPos, atomicNumbers, periodicity, periodicIndices);
         }
         else if (nPeriodic === 3) {
-            this.setup3D(relPos, cartPos, labels);
+            this.setup3D(relPos, cartPos, atomicNumbers);
         }
 
         // Create the vacancy atoms if given
@@ -309,7 +314,7 @@ export class StructureViewer extends Viewer {
 
         // Setup element legend and settings
         this.createElementLegend();
-        this.settingsHandler();
+        this.optionsHandler();
 
         return true;
     }
@@ -358,15 +363,15 @@ export class StructureViewer extends Viewer {
     setupStatic() {
 
         // Setup dat.gui settings window
-        this.settingsHandler = function( ) {
-            let showParam = this.settings.showParam;
-            let showCell = this.settings.showCell;
-            let showLegend = this.settings.showLegend;
-            let showBonds = this.settings.showBonds;
-            let showShadows = this.settings.showShadows;
-            let showTags = this.settings.showTags;
-            let showVacancies = this.settings.showVacancies;
-            let showOptions = this.settings.showOptions;
+        this.optionsHandler = function( ) {
+            let showParam = this.options.showParam;
+            let showCell = this.options.showCell;
+            let showLegend = this.options.showLegend;
+            let showBonds = this.options.showBonds;
+            let showShadows = this.options.showShadows;
+            let showTags = this.options.showTags;
+            let showVacancies = this.options.showVacancies;
+            let showOptions = this.options.showOptions;
             this.toggleLatticeParameters(showParam);
             this.toggleCell(showCell);
             this.toggleElementLegend(showLegend);
@@ -381,14 +386,14 @@ export class StructureViewer extends Viewer {
         this.datGui.domElement.style.display = "None";
         this.datGui.close();
         this.rootElement.appendChild(this.datGui.domElement)
-        this.datGui.add( this.settings, "showParam", true ).name("Lattice parameters").onChange( this.settingsHandler );
-        this.datGui.add( this.settings, "showCell", true ).name("Cell").onChange( this.settingsHandler );
-        this.datGui.add( this.settings, "showLegend", true ).name("Element labels").onChange( this.settingsHandler );
-        this.datGui.add( this.settings, "showBonds", true ).name("Bonds").onChange( this.settingsHandler );
-        this.datGui.add( this.settings, "showShadows", false ).name("Shadows").onChange( this.settingsHandler );
-        this.datGui.add( this.settings, "showTags", false ).name("Tags").onChange( this.settingsHandler );
-        this.datGui.add( this.settings, "showVacancies", false ).name("Vacancies").onChange( this.settingsHandler );
-        this.datGui.add( this.settings, "showOptions", false ).name("Options").onChange( this.settingsHandler );
+        this.datGui.add( this.options, "showParam", true ).name("Lattice parameters").onChange( this.optionsHandler );
+        this.datGui.add( this.options, "showCell", true ).name("Cell").onChange( this.optionsHandler );
+        this.datGui.add( this.options, "showLegend", true ).name("Element labels").onChange( this.optionsHandler );
+        this.datGui.add( this.options, "showBonds", true ).name("Bonds").onChange( this.optionsHandler );
+        this.datGui.add( this.options, "showShadows", false ).name("Shadows").onChange( this.optionsHandler );
+        this.datGui.add( this.options, "showTags", false ).name("Tags").onChange( this.optionsHandler );
+        this.datGui.add( this.options, "showVacancies", false ).name("Vacancies").onChange( this.optionsHandler );
+        this.datGui.add( this.options, "showOptions", false ).name("Options").onChange( this.optionsHandler );
 
         // Setup div containing the element labels
         var legendDiv = document.createElement('div');
@@ -1348,8 +1353,8 @@ export class StructureViewer extends Viewer {
                     let num1 = this.atomNumbers[i];
                     let num2 = this.atomNumbers[j];
                     let distance = pos2.clone().sub(pos1).length()
-                    let radii1 = this.settings.radiusScale*this.elementRadii[num1]
-                    let radii2 = this.settings.radiusScale*this.elementRadii[num2]
+                    let radii1 = this.options.radiusScale*this.elementRadii[num1]
+                    let radii2 = this.options.radiusScale*this.elementRadii[num2]
                     if (distance <= 1.1*(radii1 + radii2)) {
                         this.addBond(pos1, pos2);
                     }
@@ -1408,7 +1413,7 @@ export class StructureViewer extends Viewer {
         if (!exists) {
             // Calculate the amount of segments that are needed to reach a
             // certain angle for the ball surface segements
-            let radius = this.settings.radiusScale*this.elementRadii[atomicNumber];
+            let radius = this.options.radiusScale*this.elementRadii[atomicNumber];
             let targetAngle = 165;
             let nSegments = Math.ceil(360/(180-targetAngle));
 
@@ -1510,8 +1515,8 @@ export class StructureViewer extends Viewer {
      * Setup the view for 0D systems (atoms, molecules).
      */
     setup0D(relPos, cartPos, labels) {
-        this.createConventionalCell([false, false, false], this.settings.showCell);
-        this.createPrimitiveCell([false, false, false], this.settings.showCell);
+        this.createConventionalCell([false, false, false], this.options.showCell);
+        this.createPrimitiveCell([false, false, false], this.options.showCell);
         this.createAtoms(relPos, labels, false);
         this.createBonds();
         this.createCornerPoints(new THREE.Vector3(), this.basisVectors);
@@ -1563,7 +1568,7 @@ export class StructureViewer extends Viewer {
         relPos.push.apply(relPos, newPos);
         labels.push.apply(labels, newLabels);
 
-        if (this.settings.showCell) {
+        if (this.options.showCell) {
             this.createConventionalCell(periodicity);
             this.createPrimitiveCell(periodicity);
         }
@@ -1622,7 +1627,7 @@ export class StructureViewer extends Viewer {
         let translation2 = this.basisVectors[dim2].clone();
         let width = 0;
         let height = 0;
-        if (this.settings.allowRepeat) {
+        if (this.options.allowRepeat) {
             width = this.getRepetitions(translation1, 12);
             height = this.getRepetitions(translation2, 12);
         }
@@ -1655,8 +1660,8 @@ export class StructureViewer extends Viewer {
         relPos.push.apply(relPos, newPos);
         labels.push.apply(labels, newLabels);
 
-        this.createConventionalCell(periodicity, this.settings.showCell);
-        this.createPrimitiveCell(periodicity, this.settings.showCell);
+        this.createConventionalCell(periodicity, this.options.showCell);
+        this.createPrimitiveCell(periodicity, this.options.showCell);
         this.createAtoms(relPos, labels, false);
         this.createBonds();
 
@@ -1677,10 +1682,10 @@ export class StructureViewer extends Viewer {
      * Setup the view for 3D systems (crystals)
      */
     setup3D(relPos, cartPos, labels) {
-        this.createConventionalCell([true, true, true], this.settings.showCell);
-        this.createPrimitiveCell([true, true, true], this.settings.showCell);
+        this.createConventionalCell([true, true, true], this.options.showCell);
+        this.createPrimitiveCell([true, true, true], this.options.showCell);
 
-        this.createAtoms(relPos, labels, this.settings.showCopies);
+        this.createAtoms(relPos, labels, this.options.showCopies);
         this.createBonds();
         this.createCornerPoints(new THREE.Vector3(), this.basisVectors);
 
@@ -1699,6 +1704,30 @@ export class StructureViewer extends Viewer {
 	  'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm', 'Md', 'No', 'Lr', 'Rf', 'Ha', 'Sg', // sg = 106
 	  'Ns', 'Hs', 'Mt', 'Ds', 'Rg', 'Cn', 'Nh', 'Fl', 'Mc', 'Lv', 'Ts', 'Og' // Mt = 109
 	];
+
+    elementNumbers:object = {
+        'H': 1,  'He': 2, 'Li': 3, 'Be': 4,
+        'B': 5,  'C': 6,  'N': 7,  'O': 8,  'F': 9,
+        'Ne': 10, 'Na': 11, 'Mg': 12, 'Al': 13, 'Si': 14,
+        'P': 15,  'S': 16,  'Cl': 17, 'Ar': 18, 'K': 19,
+        'Ca': 20, 'Sc': 21, 'Ti': 22, 'V': 23,  'Cr': 24,
+        'Mn': 25, 'Fe': 26, 'Co': 27, 'Ni': 28, 'Cu': 29,
+        'Zn': 30, 'Ga': 31, 'Ge': 32, 'As': 33, 'Se': 34,
+        'Br': 35, 'Kr': 36, 'Rb': 37, 'Sr': 38, 'Y': 39,
+        'Zr': 40, 'Nb': 41, 'Mo': 42, 'Tc': 43, 'Ru': 44,
+        'Rh': 45, 'Pd': 46, 'Ag': 47, 'Cd': 48, 'In': 49,
+        'Sn': 50, 'Sb': 51, 'Te': 52, 'I': 53,  'Xe': 54,
+        'Cs': 55, 'Ba': 56, 'La': 57, 'Ce': 58, 'Pr': 59,
+        'Nd': 60, 'Pm': 61, 'Sm': 62, 'Eu': 63, 'Gd': 64,
+        'Tb': 65, 'Dy': 66, 'Ho': 67, 'Er': 68, 'Tm': 69,
+        'Yb': 70, 'Lu': 71, 'Hf': 72, 'Ta': 73, 'W': 74,
+        'Re': 75, 'Os': 76, 'Ir': 77, 'Pt': 78, 'Au': 79,
+        'Hg': 80, 'Tl': 81, 'Pb': 82, 'Bi': 83, 'Po': 84,
+        'At': 85, 'Rn': 86, 'Fr': 87, 'Ra': 88, 'Ac': 89,
+        'Th': 90, 'Pa': 91, 'U': 92,  'Np': 93, 'Pu': 94,
+        'Am': 95, 'Cm': 96, 'Bk': 97, 'Cf': 98, 'Es': 99,
+        'Fm': 100, 'Md': 101, 'No': 102, 'Lr': 103,
+    };
 
 
     //  Covalent radii revisited,

@@ -10,77 +10,54 @@ THREE.OrthographicControls = function ( object, domElement ) {
 
 	var _this = this;
 	var STATE = { NONE: - 1, ROTATE: 0, ZOOM: 1, PAN: 2, TOUCH_ROTATE: 3, TOUCH_ZOOM_PAN: 4 };
-
 	this.object = object;
 	this.domElement = ( domElement !== undefined ) ? domElement : document;
 
-	// API
-
+	// Public
 	this.enabled = true;
-
 	this.screen = { left: 0, top: 0, width: 0, height: 0 };
-
 	this.rotateSpeed = 1.0;
 	this.zoomSpeed = 1.2;
 	this.panSpeed = 0.3;
-
-	this.noRotate = false;
-	this.noZoom = false;
-	this.noPan = false;
-
+	this.enableRotate = true;
+	this.enableZoom = true;
+	this.enablePan = true;
 	this.staticMoving = false;
 	this.dynamicDampingFactor = 0.2;
-
 	this.minDistance = 0;
 	this.maxDistance = Infinity;
-
 	this.keys = [ 65 /*A*/, 83 /*S*/, 68 /*D*/ ];
 
-	// internals
-
+	// Private
 	this.target = new THREE.Vector3();
-
 	var EPS = 0.000001;
-
 	var lastPosition = new THREE.Vector3();
-
 	var _state = STATE.NONE,
 	_prevState = STATE.NONE,
-
 	_eye = new THREE.Vector3(),
-
 	_movePrev = new THREE.Vector2(),
 	_moveCurr = new THREE.Vector2(),
-
 	_lastAxis = new THREE.Vector3(),
 	_lastAngle = 0,
-
 	_zoomStart = new THREE.Vector2(),
 	_zoomEnd = new THREE.Vector2(),
-
 	_touchZoomDistanceStart = 0,
 	_touchZoomDistanceEnd = 0,
-
 	_panStart = new THREE.Vector2(),
 	_panEnd = new THREE.Vector2();
-
     _zoomed = false;
 
-	// for reset
-
+	// For reset
 	this.target0 = this.target.clone();
 	this.position0 = this.object.position.clone();
 	this.up0 = this.object.up.clone();
 
-	// events
-
+	// Events
 	var changeEvent = { type: 'change' };
 	var startEvent = { type: 'start' };
 	var endEvent = { type: 'end' };
 
-
-	// methods
-
+	// Methods
 	this.handleResize = function () {
 
 		if ( this.domElement === document ) {
@@ -105,13 +82,9 @@ THREE.OrthographicControls = function ( object, domElement ) {
 	};
 
 	this.handleEvent = function ( event ) {
-
 		if ( typeof this[ event.type ] == 'function' ) {
-
 			this[ event.type ]( event );
-
 		}
-
 	};
 
 	var getMouseOnScreen = ( function () {
@@ -134,16 +107,12 @@ THREE.OrthographicControls = function ( object, domElement ) {
 	var getMouseOnCircle = ( function () {
 
 		var vector = new THREE.Vector2();
-
 		return function getMouseOnCircle( pageX, pageY ) {
-
 			vector.set(
 				( ( pageX - _this.screen.width * 0.5 - _this.screen.left ) / ( _this.screen.width * 0.5 ) ),
 				( ( _this.screen.height + 2 * ( _this.screen.top - pageY ) ) / _this.screen.width ) // screen.width intentional
 			);
-
 			return vector;
-
 		};
 
 	}() );
@@ -229,19 +198,12 @@ THREE.OrthographicControls = function ( object, domElement ) {
                 _zoomed = true;
 
 				if ( _this.staticMoving ) {
-
 					_zoomStart.copy( _zoomEnd );
-
 				} else {
-
 					_zoomStart.y += ( _zoomEnd.y - _zoomStart.y ) * this.dynamicDampingFactor;
-
 				}
-
 			}
-
 		}
-
 	};
 
 	this.panCamera = ( function() {
@@ -282,7 +244,7 @@ THREE.OrthographicControls = function ( object, domElement ) {
 
 	this.checkDistances = function () {
 
-		if ( ! _this.noZoom || ! _this.noPan ) {
+		if ( _this.enableZoom || _this.enablePan ) {
 
 			if ( _eye.lengthSq() > _this.maxDistance * _this.maxDistance ) {
 
@@ -306,40 +268,27 @@ THREE.OrthographicControls = function ( object, domElement ) {
 
 		_eye.subVectors( _this.object.position, _this.target );
 
-		if ( ! _this.noRotate ) {
-
+		if ( _this.enableRotate ) {
 			_this.rotateCamera();
-
 		}
 
-		if ( ! _this.noZoom ) {
-
+		if ( _this.enableZoom ) {
 			_this.zoomCamera();
-
 		}
 
-		if ( ! _this.noPan ) {
-
+		if ( _this.enablePan ) {
 			_this.panCamera();
-
 		}
 
 		_this.object.position.addVectors( _this.target, _eye );
-
 		_this.checkDistances();
-
 		_this.object.lookAt( _this.target );
 
 		if ( lastPosition.distanceToSquared( _this.object.position ) > EPS || _zoomed) {
-
 			_this.dispatchEvent( changeEvent );
-
 			lastPosition.copy( _this.object.position );
-
 			_zoomed = false;
-
 		}
-
 	};
 
 	this.reset = function () {
@@ -375,15 +324,15 @@ THREE.OrthographicControls = function ( object, domElement ) {
 
 			return;
 
-		} else if ( event.keyCode === _this.keys[ STATE.ROTATE ] && ! _this.noRotate ) {
+		} else if ( event.keyCode === _this.keys[ STATE.ROTATE ] && _this.enableRotate ) {
 
 			_state = STATE.ROTATE;
 
-		} else if ( event.keyCode === _this.keys[ STATE.ZOOM ] && ! _this.noZoom ) {
+		} else if ( event.keyCode === _this.keys[ STATE.ZOOM ] && _this.enableZoom ) {
 
 			_state = STATE.ZOOM;
 
-		} else if ( event.keyCode === _this.keys[ STATE.PAN ] && ! _this.noPan ) {
+		} else if ( event.keyCode === _this.keys[ STATE.PAN ] && _this.enablePan ) {
 
 			_state = STATE.PAN;
 
@@ -414,17 +363,17 @@ THREE.OrthographicControls = function ( object, domElement ) {
 
 		}
 
-		if ( _state === STATE.ROTATE && ! _this.noRotate ) {
+		if ( _state === STATE.ROTATE && _this.enableRotate ) {
 
 			_moveCurr.copy( getMouseOnCircle( event.pageX, event.pageY ) );
 			_movePrev.copy( _moveCurr );
 
-		} else if ( _state === STATE.ZOOM && ! _this.noZoom ) {
+		} else if ( _state === STATE.ZOOM && _this.enableZoom ) {
 
 			_zoomStart.copy( getMouseOnScreen( event.pageX, event.pageY ) );
 			_zoomEnd.copy( _zoomStart );
 
-		} else if ( _state === STATE.PAN && ! _this.noPan ) {
+		} else if ( _state === STATE.PAN && _this.enablePan ) {
 
 			_panStart.copy( getMouseOnScreen( event.pageX, event.pageY ) );
 			_panEnd.copy( _panStart );
@@ -445,16 +394,16 @@ THREE.OrthographicControls = function ( object, domElement ) {
 		event.preventDefault();
 		event.stopPropagation();
 
-		if ( _state === STATE.ROTATE && ! _this.noRotate ) {
+		if ( _state === STATE.ROTATE && _this.enableRotate ) {
 
 			_movePrev.copy( _moveCurr );
 			_moveCurr.copy( getMouseOnCircle( event.pageX, event.pageY ) );
 
-		} else if ( _state === STATE.ZOOM && ! _this.noZoom ) {
+		} else if ( _state === STATE.ZOOM && _this.enableZoom ) {
 
 			_zoomEnd.copy( getMouseOnScreen( event.pageX, event.pageY ) );
 
-		} else if ( _state === STATE.PAN && ! _this.noPan ) {
+		} else if ( _state === STATE.PAN && _this.enablePan ) {
 
 			_panEnd.copy( getMouseOnScreen( event.pageX, event.pageY ) );
 
@@ -487,17 +436,11 @@ THREE.OrthographicControls = function ( object, domElement ) {
 		var delta = 0;
 
 		if ( event.wheelDelta ) {
-
 			// WebKit / Opera / Explorer 9
-
 			delta = event.wheelDelta / 40;
-
 		} else if ( event.detail ) {
-
 			// Firefox
-
 			delta = - event.detail / 3;
-
 		}
 
 		_zoomStart.y += delta * 0.01;

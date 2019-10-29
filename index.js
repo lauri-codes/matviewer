@@ -15,7 +15,10 @@ let options = {
     showOptions: true,
     showUnit: true,
     showBonds: true,
-    radiusScale: 1
+    radiusScale: 1,
+    enableZoom: true,
+    enablePan: true,
+    enableRotate: true,
 };
 var viewer = new structureviewer.StructureViewer(targetElem, false, options);
 var structure = {
@@ -72,4 +75,49 @@ var structure = {
         [0.0, 0.0, 5.6402]
     ]
 };
-viewer.load(structure);
+
+var structure = {
+    "atomicNumbers": [8, 6, 7, 6, 1, 1, 1, 1, 1],
+    "positions": [
+        [ 4.245460e-01, 1.327024e+00, 8.034000e-03],
+        [ 7.715800e-02, 1.497890e-01,-4.249000e-03],
+        [ 9.855180e-01,-8.785370e-01,-4.891000e-02],
+        [-1.371475e+00,-2.886650e-01,-1.440000e-04],
+        [ 7.079520e-01,-1.824249e+00, 1.699420e-01],
+        [-1.997229e+00, 5.849220e-01,-1.754770e-01],
+        [-1.560842e+00,-1.039270e+00,-7.716860e-01],
+        [-1.632113e+00,-7.230070e-01, 9.698140e-01],
+        [ 1.953133e+00,-6.315740e-01, 1.118660e-01]
+    ],
+    "pbc": [false, false, false],
+    "cell": [
+        [5.6402, 0.0, 0.0],
+        [0.0, 5.6402, 0.0],
+        [0.0, 0.0, 5.6402]
+    ]
+};
+
+var H2O = {
+    "atomicNumbers": [8, 1, 1],
+    "positions": [
+        [0.0, 0.0      , 0.119262],
+        [0.0, 0.763239,-0.477047],
+        [0.0,-0.763239,-0.477047],
+    ],
+    "pbc": [false, false, false],
+    "cell": [
+        [5.6402, 0.0, 0.0],
+        [0.0, 5.6402, 0.0],
+        [0.0, 0.0, 5.6402]
+    ]
+};
+
+var str = {
+    "positions": [[0.0, 0.0, 0.0], [0.89175, 0.89175, 0.89175], [0.0, 1.7835, 1.7835], [0.89175, 2.67525, 2.67525], [1.7835, 0.0, 1.7835], [2.67525, 0.89175, 2.67525], [1.7835, 1.7835, 0.0], [2.67525, 2.67525, 0.89175]],
+    "pbc": [true, true, true],
+    "cell": [[3.567, 0.0, 0.0], [0.0, 3.567, 0.0], [0.0, 0.0, 3.567]],
+    //"atomicNumbers": [6, 6, 6, 6, 6, 6, 6, 6]
+    "chemicalSymbols": ["C", "C", "C", "C", "C", "C", "C", "C"]
+};
+//viewer.load(str);
+viewer.loadJSON("geometry.json");
