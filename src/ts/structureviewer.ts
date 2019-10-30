@@ -80,6 +80,7 @@ export class StructureViewer extends Viewer {
         this.options["wrap"]          = opt["wrap"] === undefined          ? true  : opt["wrap"];
         this.options["showUnit"]      = opt["showUnit"] === undefined      ? true  : opt["showUnit"];
         this.options["radiusScale"]   = opt["radiusScale"] === undefined   ? 1     : opt["radiusScale"];
+        this.options["bondScale"]     = opt["bondScale"] === undefined     ? 1     : opt["bondScale"];
 
         // Handle base class settings
         super.handleSettings(opt);
@@ -1355,7 +1356,7 @@ export class StructureViewer extends Viewer {
                     let distance = pos2.clone().sub(pos1).length()
                     let radii1 = this.options.radiusScale*this.elementRadii[num1]
                     let radii2 = this.options.radiusScale*this.elementRadii[num2]
-                    if (distance <= 1.1*(radii1 + radii2)) {
+                    if (distance <= this.options.bondScale*1.1*(radii1 + radii2)) {
                         this.addBond(pos1, pos2);
                     }
                 }
