@@ -81,6 +81,7 @@ export class StructureViewer extends Viewer {
         this.options["showUnit"]      = opt["showUnit"] === undefined      ? true  : opt["showUnit"];
         this.options["radiusScale"]   = opt["radiusScale"] === undefined   ? 1     : opt["radiusScale"];
         this.options["bondScale"]     = opt["bondScale"] === undefined     ? 1     : opt["bondScale"];
+        this.options["translation"]   = opt["translation"] === undefined   ? [0, 0, 0] : opt["translation"];
 
         // Handle base class settings
         super.handleSettings(opt);
@@ -309,6 +310,9 @@ export class StructureViewer extends Viewer {
         else if (nPeriodic === 3) {
             this.setup3D(relPos, cartPos, atomicNumbers);
         }
+
+        // Translate the system according to given option
+        this.translate(this.options.translation);
 
         // Create the vacancy atoms if given
         this.createVacancies()
@@ -1362,6 +1366,19 @@ export class StructureViewer extends Viewer {
                 }
             }
         }
+    }
+
+    /**
+     * Translate the atoms.
+     *
+     * @param positions - Positions of the atoms
+     * @param labels - The element numbers for the atoms
+     */
+    translate(translation:number[]) {
+        let vec = new THREE.Vector3().fromArray(translation);
+        this.atoms.position.add(vec);
+        this.bonds.position.add(vec);
+        this.render();
     }
 
      /**

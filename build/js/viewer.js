@@ -68,18 +68,14 @@ System.register([], function (exports_1, context_1) {
                 loadJSON(url) {
                     // Open file
                     var xhr = new XMLHttpRequest();
-                    xhr.onreadystatechange = () => {
-                        if (xhr.readyState === XMLHttpRequest.DONE) {
-                            if (xhr.status === 200) {
-                                return this.load(JSON.parse(xhr.responseText));
-                            }
-                            else {
-                                return false;
-                            }
-                        }
-                    };
-                    xhr.open("GET", url, true);
+                    xhr.open("GET", url, false);
                     xhr.send();
+                    if (xhr.status === 200) {
+                        return this.load(JSON.parse(xhr.responseText));
+                    }
+                    else {
+                        return false;
+                    }
                 }
                 /**
                  * This function can be used to setup any static assets in the

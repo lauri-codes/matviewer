@@ -20,6 +20,7 @@ let options = {
     enableZoom: true,
     enablePan: true,
     enableRotate: true,
+    translation: [2.5, 2.5, 2.5],
 };
 var viewer = new structureviewer.StructureViewer(targetElem, false, options);
 var structure = {

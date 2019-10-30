@@ -317,6 +317,7 @@ System.register(["./viewer"], function (exports_1, context_1) {
                     this.options["showUnit"] = opt["showUnit"] === undefined ? true : opt["showUnit"];
                     this.options["radiusScale"] = opt["radiusScale"] === undefined ? 1 : opt["radiusScale"];
                     this.options["bondScale"] = opt["bondScale"] === undefined ? 1 : opt["bondScale"];
+                    this.options["translation"] = opt["translation"] === undefined ? [0, 0, 0] : opt["translation"];
                     // Handle base class settings
                     super.handleSettings(opt);
                 }
@@ -525,6 +526,8 @@ System.register(["./viewer"], function (exports_1, context_1) {
                     else if (nPeriodic === 3) {
                         this.setup3D(relPos, cartPos, atomicNumbers);
                     }
+                    // Translate the system according to given option
+                    this.translate(this.options.translation);
                     // Create the vacancy atoms if given
                     this.createVacancies();
                     // Setup element legend and settings
@@ -1461,6 +1464,18 @@ System.register(["./viewer"], function (exports_1, context_1) {
                             }
                         }
                     }
+                }
+                /**
+                 * Translate the atoms.
+                 *
+                 * @param positions - Positions of the atoms
+                 * @param labels - The element numbers for the atoms
+                 */
+                translate(translation) {
+                    let vec = new THREE.Vector3().fromArray(translation);
+                    this.atoms.position.add(vec);
+                    this.bonds.position.add(vec);
+                    this.render();
                 }
                 /**
                  * Used to check if the given relative position component is almost the
