@@ -123,3 +123,5 @@ var str = {
 };
 //viewer.load(str);
 viewer.loadJSON("geometry.json");
+console.log(viewer.atoms.getObjectByName("atom1"));
+console.log(viewer.bonds.getObjectByName("bond0-2"));

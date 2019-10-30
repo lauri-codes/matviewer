@@ -844,10 +844,9 @@ export class StructureViewer extends Viewer {
                 false             // aClockwise
             );
             let points = curve.getSpacedPoints( 20 );
-            let path = new THREE.Path();
-            let arcGeometry = path.createGeometry(points);
-            arcGeometry.computeLineDistances();
+            let arcGeometry = new THREE.Geometry().setFromPoints(points);
             let arc = new THREE.Line( arcGeometry, arcMaterial);
+            arc.computeLineDistances();
 
             // First rotate the arc so that it's x-axis points towards the
             // first basis vector that defines the arc
@@ -1029,7 +1028,7 @@ export class StructureViewer extends Viewer {
                 );
                 let line = new THREE.Line(lineGeometry, line1Mat);
                 cell.add( line );
-                lineGeometry.computeLineDistances();
+                line.computeLineDistances();
             }
 
             // Second line
@@ -1049,7 +1048,7 @@ export class StructureViewer extends Viewer {
                 );
                 let line2 = new THREE.Line(line2Geometry, line2Mat);
                 cell.add( line2 );
-                line2Geometry.computeLineDistances();
+                line2.computeLineDistances();
             }
 
             // Third line
@@ -1069,7 +1068,7 @@ export class StructureViewer extends Viewer {
                 );
                 let line3 = new THREE.Line( line3Geometry, line3Mat );
                 cell.add( line3 );
-                line3Geometry.computeLineDistances();
+                line3.computeLineDistances();
             }
 
             // Fourth line
@@ -1086,7 +1085,7 @@ export class StructureViewer extends Viewer {
                 );
                 let line4 = new THREE.Line( line4Geometry, line4Mat );
                 cell.add( line4 );
-                line4Geometry.computeLineDistances();
+                line4.computeLineDistances();
             }
         }
         return cell;
@@ -1294,7 +1293,7 @@ export class StructureViewer extends Viewer {
 
             // Add the primary atom
             let atomicNumber = labels[i];
-            this.addAtom(iRelPos, atomicNumber, meshMap);
+            this.addAtom(i, iRelPos, atomicNumber, meshMap);
 
             // Gather element legend data
             let elementName = this.elementNames[atomicNumber-1];
@@ -1311,31 +1310,31 @@ export class StructureViewer extends Viewer {
                 let zZero = this.almostEqual(0, z, basis3, this.wrapTolerance);;
 
                 if (xZero && yZero && zZero) {
-                    this.addAtom(new THREE.Vector3(1,0,0), atomicNumber, meshMap);
-                    this.addAtom(new THREE.Vector3(0,1,0), atomicNumber, meshMap);
-                    this.addAtom(new THREE.Vector3(0,0,1), atomicNumber, meshMap);
-                    this.addAtom(new THREE.Vector3(1,1,0), atomicNumber, meshMap);
-                    this.addAtom(new THREE.Vector3(0,1,1), atomicNumber, meshMap);
-                    this.addAtom(new THREE.Vector3(1,0,1), atomicNumber, meshMap);
-                    this.addAtom(new THREE.Vector3(1,1,1), atomicNumber, meshMap);
+                    this.addAtom(i, new THREE.Vector3(1,0,0), atomicNumber, meshMap);
+                    this.addAtom(i, new THREE.Vector3(0,1,0), atomicNumber, meshMap);
+                    this.addAtom(i, new THREE.Vector3(0,0,1), atomicNumber, meshMap);
+                    this.addAtom(i, new THREE.Vector3(1,1,0), atomicNumber, meshMap);
+                    this.addAtom(i, new THREE.Vector3(0,1,1), atomicNumber, meshMap);
+                    this.addAtom(i, new THREE.Vector3(1,0,1), atomicNumber, meshMap);
+                    this.addAtom(i, new THREE.Vector3(1,1,1), atomicNumber, meshMap);
                 } else if(xZero && yZero && !zZero) {
-                    this.addAtom(iRelPos.clone().add(new THREE.Vector3(1,0,0)), atomicNumber, meshMap);
-                    this.addAtom(iRelPos.clone().add(new THREE.Vector3(0,1,0)), atomicNumber, meshMap);
-                    this.addAtom(iRelPos.clone().add(new THREE.Vector3(1,1,0)), atomicNumber, meshMap);
+                    this.addAtom(i, iRelPos.clone().add(new THREE.Vector3(1,0,0)), atomicNumber, meshMap);
+                    this.addAtom(i, iRelPos.clone().add(new THREE.Vector3(0,1,0)), atomicNumber, meshMap);
+                    this.addAtom(i, iRelPos.clone().add(new THREE.Vector3(1,1,0)), atomicNumber, meshMap);
                 } else if(!xZero && yZero && zZero) {
-                    this.addAtom(iRelPos.clone().add(new THREE.Vector3(0,1,0)), atomicNumber, meshMap);
-                    this.addAtom(iRelPos.clone().add(new THREE.Vector3(0,0,1)), atomicNumber, meshMap);
-                    this.addAtom(iRelPos.clone().add(new THREE.Vector3(0,1,1)), atomicNumber, meshMap);
+                    this.addAtom(i, iRelPos.clone().add(new THREE.Vector3(0,1,0)), atomicNumber, meshMap);
+                    this.addAtom(i, iRelPos.clone().add(new THREE.Vector3(0,0,1)), atomicNumber, meshMap);
+                    this.addAtom(i, iRelPos.clone().add(new THREE.Vector3(0,1,1)), atomicNumber, meshMap);
                 } else if(xZero && !yZero && zZero) {
-                    this.addAtom(iRelPos.clone().add(new THREE.Vector3(1,0,0)), atomicNumber, meshMap);
-                    this.addAtom(iRelPos.clone().add(new THREE.Vector3(0,0,1)), atomicNumber, meshMap);
-                    this.addAtom(iRelPos.clone().add(new THREE.Vector3(1,0,1)), atomicNumber, meshMap);
+                    this.addAtom(i, iRelPos.clone().add(new THREE.Vector3(1,0,0)), atomicNumber, meshMap);
+                    this.addAtom(i, iRelPos.clone().add(new THREE.Vector3(0,0,1)), atomicNumber, meshMap);
+                    this.addAtom(i, iRelPos.clone().add(new THREE.Vector3(1,0,1)), atomicNumber, meshMap);
                 } else if(xZero && !yZero && !zZero) {
-                    this.addAtom(iRelPos.clone().add(new THREE.Vector3(1,0,0)), atomicNumber, meshMap);
+                    this.addAtom(i, iRelPos.clone().add(new THREE.Vector3(1,0,0)), atomicNumber, meshMap);
                 } else if(!xZero && yZero && !zZero) {
-                    this.addAtom(iRelPos.clone().add(new THREE.Vector3(0,1,0)), atomicNumber, meshMap);
+                    this.addAtom(i, iRelPos.clone().add(new THREE.Vector3(0,1,0)), atomicNumber, meshMap);
                 } else if(!xZero && !yZero && zZero) {
-                    this.addAtom(iRelPos.clone().add(new THREE.Vector3(0,0,1)), atomicNumber, meshMap);
+                    this.addAtom(i, iRelPos.clone().add(new THREE.Vector3(0,0,1)), atomicNumber, meshMap);
                 }
             }
         }
@@ -1361,7 +1360,7 @@ export class StructureViewer extends Viewer {
                     let radii1 = this.options.radiusScale*this.elementRadii[num1]
                     let radii2 = this.options.radiusScale*this.elementRadii[num2]
                     if (distance <= this.options.bondScale*1.1*(radii1 + radii2)) {
-                        this.addBond(pos1, pos2);
+                        this.addBond(i, j, pos1, pos2);
                     }
                 }
             }
@@ -1402,12 +1401,12 @@ export class StructureViewer extends Viewer {
      * @param atomicNumber - The atomic number for the added atom
      * @param relative - Are the coordinates relatice to the cell basis vectors
      */
-    addBond(pos1, pos2) {
+    addBond(i, j, pos1, pos2) {
         // Bond
         let radius = 0.075;
         let bondMaterial = new THREE.MeshPhongMaterial( { color: 0xFFFFFF } );
         let cylinder = this.createCylinder(pos1, pos2, radius, 10, bondMaterial);
-        this.bonds.add( cylinder );
+        cylinder.name = "fill";
         this.bondFills.push(cylinder);
 
         // Bond outline hack
@@ -1415,7 +1414,14 @@ export class StructureViewer extends Viewer {
         let scale = addition/radius + 1;
         let outlineMaterial = new THREE.MeshBasicMaterial({color : 0x000000, side: THREE.BackSide});
         let outline = this.createCylinder(pos1, pos2, scale*radius, 10, outlineMaterial);
-        this.bonds.add( outline );
+        outline.name = "outline";
+
+        // Put all vonds visuals inside a named group
+        let group = new THREE.Group();
+        group.name = "bond" + i + "-" + j;
+        group.add(cylinder);
+        group.add(outline);
+        this.bonds.add(group);
     }
 
     /**
@@ -1478,15 +1484,22 @@ export class StructureViewer extends Viewer {
      * @param atomicNumber - The atomic number for the added atom
      * @param relative - Are the coordinates relatice to the cell basis vectors
      */
-    addAtom(position, atomicNumber, mesh, relative:boolean=true) {
+    addAtom(index, position, atomicNumber, mesh, relative:boolean=true) {
         let atomData = this.createAtom(position, atomicNumber, mesh, relative);
         let atom = atomData[0];
         let outline = atomData[1];
         let pos = atomData[2];
 
-        this.atoms.add(atom);
+        // Put all atoms visuals inside a named group
+        let group = new THREE.Group();
+        group.name = "atom"+index;
+        atom.name = "fill";
+        outline.name = "outline";
+        group.add(atom)
+        group.add(outline)
+        this.atoms.add(group)
+
         this.atomFills.push(atom);
-        this.atoms.add(outline);
         this.atomOutlines.push(outline);
         this.atomPos.push(pos);
         this.atomNumbers.push(atomicNumber);
