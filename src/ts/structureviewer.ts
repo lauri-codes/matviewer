@@ -44,7 +44,6 @@ export class StructureViewer extends Viewer {
         "interstitials": "0xaf8700",
         "substitutions": "0x0087ff",
         "outliers": "0x0087ff"
-        //"outliers": "0xff7e00"
     };
     vacancyContainer:any;                 // Contains the vacancy meshes
 
@@ -58,7 +57,6 @@ export class StructureViewer extends Viewer {
         this.scenes.push(this.sceneStructure);
         this.sceneInfo = new THREE.Scene();
         this.scenes.push(this.sceneInfo);
-        this.setupControlVariables(10);
     }
 
     /**
@@ -82,6 +80,7 @@ export class StructureViewer extends Viewer {
         this.options["radiusScale"]   = opt["radiusScale"] === undefined   ? 1     : opt["radiusScale"];
         this.options["bondScale"]     = opt["bondScale"] === undefined     ? 1     : opt["bondScale"];
         this.options["translation"]   = opt["translation"] === undefined   ? [0, 0, 0] : opt["translation"];
+        this.options["zoomLevel"]     = opt["zoomLevel"] === undefined     ? 1   : opt["zoomLevel"];
 
         // Handle base class settings
         super.handleSettings(opt);
@@ -313,6 +312,9 @@ export class StructureViewer extends Viewer {
 
         // Translate the system according to given option
         this.translate(this.options.translation);
+
+        // Zoom according to given option
+        this.setZoom(this.options.zoomLevel);
 
         // Create the vacancy atoms if given
         this.createVacancies()
@@ -642,16 +644,14 @@ export class StructureViewer extends Viewer {
             let nZeros = 6-elementColor.length;
             let prefix = "#" + Array(nZeros+1).join("0");
             elementColor = prefix + elementColor;
-            let elementRadius = 25*elementArray[iElem][2];
-            elementRadius = Math.min(100, elementRadius);
-            elementRadius = Math.max(30, elementRadius)
+            let elementRadius = 50*elementArray[iElem][2];
 
             // Containing sphere
             let elemDiv = document.createElement('div');
             elemDiv.className = "elementlabel";
             elemDiv.style.backgroundColor = elementColor;
-            elemDiv.style.height = elementRadius;
-            elemDiv.style.width = elementRadius;
+            elemDiv.style.height = elementRadius+"px";
+            elemDiv.style.width = elementRadius+"px";
             elemDiv.style.textAlign = "center";
             elemDiv.style.verticalAlign = "middle";
             elemDiv.style.lineHeight = elementRadius+"px";
@@ -1377,6 +1377,17 @@ export class StructureViewer extends Viewer {
         let vec = new THREE.Vector3().fromArray(translation);
         this.atoms.position.add(vec);
         this.bonds.position.add(vec);
+        this.render();
+    }
+
+    /**
+     * Set the zoom level
+     *
+     * @param positions - Positions of the atoms
+     * @param labels - The element numbers for the atoms
+     */
+    setZoom(zoomLevel:number[]) {
+        this.camera.zoom = zoomLevel;
         this.render();
     }
 

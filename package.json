@@ -1,15 +1,17 @@
 {
   "name": "matviewer",
   "version": "1.0.0",
+  "private": true,
   "description": "A three.js based 3D viewer for atomic geometries.",
   "devDependencies": {
-    "gulp": "^3.9.1",
+    "concurrently": "^3.1.0",
+    "gulp": "^4.0.2",
     "gulp-typescript": "^3.1.3",
-    "lite-server": "^2.2.2",
-    "systemjs": "^0.19.43",
+    "lite-server": "^2.5.4",
+    "three": "^0.110.0",
     "typescript": "^2.0.10",
-    "three": "^0.84.0",
-    "concurrently": "^3.1.0"
+    "webpack": "^4.41.2",
+    "webpack-cli": "^3.3.10"
   },
   "scripts": {
     "dev": "concurrently \"gulp\" \"npm run lite\"",
@@ -19,6 +21,6 @@
   "author": "Lauri Himanen",
   "license": "Apache Licence Version 2.0",
   "dependencies": {
-    "dat.gui": "^0.7.3"
+    "dat.gui": "^0.7.6"
   }
 }

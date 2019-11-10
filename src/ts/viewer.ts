@@ -23,7 +23,7 @@ export abstract class Viewer {
      *     screenshots keep it off.
      * @param {options} An object that can hold custom settings for the viewer.
      */
-    constructor(public hostElement, public saveBuffer=false, options={}) {
+    constructor(public hostElement, options={}, public saveBuffer=false) {
         this.handleSettings(options);
         this.setupRootElement();
         this.setupRenderer();
@@ -32,7 +32,9 @@ export abstract class Viewer {
         this.setupCamera();
         this.setupControls()
         this.setupHostElement(hostElement);
-        //window.addEventListener('resize', this.onWindowResize.bind(this), false);
+        if (this.options.autoResize) {
+            window.addEventListener('resize', this.onWindowResize.bind(this), false);
+        }
     }
 
     handleSettings(opt:Object) {
@@ -40,6 +42,10 @@ export abstract class Viewer {
         this.options["enableZoom"]   = opt["enableZoom"] === undefined   ? true : opt["enableZoom"];
         this.options["enableRotate"] = opt["enableRotate"] === undefined ? true : opt["enableRotate"];
         this.options["enablePan"]    = opt["enablePan"] === undefined    ? true : opt["enablePan"];
+        this.options["panSpeed"]     = opt["panSpeed"] === undefined     ? 10   : opt["panSpeed"];
+        this.options["zoomSpeed"]    = opt["zoomSpeed"] === undefined    ? 2.5  : opt["zoomSpeed"];
+        this.options["rotateSpeed"]  = opt["rotateSpeed"] === undefined  ? 2.5  : opt["rotateSpeed"];
+        this.options["autoResize"]   = opt["autoResize"] === undefined   ? true  : opt["autoResize"];
     }
 
     /**
@@ -104,18 +110,6 @@ export abstract class Viewer {
      */
     abstract setupLights(): void;
 
-    /*
-     * Used to setup the variables that control the interaction with the system.
-     */
-    setupControlVariables(
-        panSpeed:number=10,
-        zoomSpeed:number=2.5,
-        rotateSpeed:number=2.5)
-    {
-        this.panSpeed = panSpeed;
-        this.zoomSpeed = zoomSpeed;
-        this.rotateSpeed = rotateSpeed;
-    }
 
     /*
      * Used to setup the scenes. This default implementation will create a
@@ -305,11 +299,10 @@ export abstract class Viewer {
     setupControls(
     ) {
         let controls = new THREE.OrthographicControls(this.camera, this.rootElement);
-        controls.rotateSpeed = this.rotateSpeed;
-        controls.zoomSpeed = this.zoomSpeed;
-        controls.panSpeed = this.panSpeed;
+        controls.rotateSpeed = this.options.rotateSpeed;
+        controls.zoomSpeed = this.options.zoomSpeed;
+        controls.panSpeed = this.options.panSpeed;
 
-        console.log(this.options["enableZoom"]);
         controls.enableZoom = this.options["enableZoom"];
         controls.enablePan = this.options["enablePan"];
         controls.enableRotate = this.options["enableRotate"];
@@ -351,7 +344,7 @@ export abstract class Viewer {
 
             // Default the zoom to 1 for the projection
             let oldZoom = this.camera.zoom;
-            this.camera.zoom = 1;
+            this.camera.zoom = this.options.zoomLevel;
             this.camera.updateProjectionMatrix();
 
             // Figure out the direction from center

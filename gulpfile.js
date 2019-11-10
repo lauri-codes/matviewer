@@ -1,5 +1,7 @@
 var gulp = require('gulp');
 var ts = require('gulp-typescript');
+const webpack = require('webpack');
+const webpackConfig = require('./webpack.config.js');
 
 var tsProject = ts.createProject("tsconfig.json");
 
@@ -9,45 +11,47 @@ var paths = {
   css: './src/css/**/*.css',
   nodemodules: [
       './node_modules/three/build/three.min.js',
-      './node_modules/three/examples/js/renderers/Projector.js',
-      './node_modules/three/examples/js/renderers/CanvasRenderer.js',
-      './node_modules/systemjs/dist/system.js',
       './node_modules/dat.gui/build/dat.gui.min.js'
   ]
 };
 
-
-
 // Compile own TypeScript
-gulp.task('typescript', function () {
+gulp.task('typescript', function(done) {
     // Build Typescript
     return gulp.src([paths.typescript])
         .pipe(tsProject())
-        .js.pipe(gulp.dest('./build/js'));
-});
-
-// Copy javascript files to build
-gulp.task('copy-javascript', function() {
-    gulp.src(paths.javascript).pipe(gulp.dest('./build/js'));
-});
-
-// Copy css files to build
-gulp.task('copy-css', function() {
-    gulp.src(paths.css).pipe(gulp.dest('./build/css'));
+        .js.pipe(gulp.dest('./src/js'));
 });
 
 // Copy files from node-modules
-gulp.task('copy-node-modules', function() {
-    gulp.src(paths.nodemodules).pipe(gulp.dest('./build/js'));
+gulp.task('copy-node-modules', function(done) {
+    gulp.src(paths.nodemodules).pipe(gulp.dest('./dist/js'));
+    done();
 });
 
-// Rerun the typescript compilation on file change
-gulp.task('watch', function() {
-  gulp.watch([paths.typescript], ['typescript']);
+// Run webpack
+gulp.task('webpack', function(done) {
+    return new Promise((resolve, reject) => {
+        webpack(webpackConfig, (err, stats) => {
+            if (err) {
+                return reject(err);
+            }
+            if (stats.hasErrors()) {
+                return reject(new Error(stats.compilation.errors.join('\n')));
+            }
+            resolve();
+        });
+    });
 });
 
 // Build task
-gulp.task('build', ["typescript", "copy-css", "copy-javascript", "copy-node-modules"]);
+gulp.task('build', gulp.series("typescript", "copy-node-modules", "webpack"));
+
+// Development task
+gulp.task('develop', function(done) {
+  gulp.watch([paths.typescript], gulp.series("typescript", "webpack"));
+  done();
+});
 
 // The default task (called when you run `gulp` from cli)
-gulp.task('default', ["build", "watch"]);
+gulp.task('default', gulp.series("build", "develop"));
