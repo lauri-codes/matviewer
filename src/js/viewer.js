@@ -15,7 +15,7 @@ export class Viewer {
         this.saveBuffer = saveBuffer;
         this.scenes = []; // A list of scenes that are rendered
         this.cameraWidth = 10.0; // The default "width" of the camera
-        this.fitMargin = 10; // The margin that is left between the cell corners and the screen edge in pixels
+        this.fitMargin = 0.5; // The margin that is left between the cell corners and the screen edge in pixels
         this.options = {}; // Options for the viewer. Can be e.g. used to control which settings are enabled
         this.handleSettings(options);
         this.setupRootElement();
@@ -37,6 +37,7 @@ export class Viewer {
         this.options["panSpeed"] = opt["panSpeed"] === undefined ? 10 : opt["panSpeed"];
         this.options["zoomSpeed"] = opt["zoomSpeed"] === undefined ? 2.5 : opt["zoomSpeed"];
         this.options["rotateSpeed"] = opt["rotateSpeed"] === undefined ? 2.5 : opt["rotateSpeed"];
+        this.options["autoFit"] = opt["autoFit"] === undefined ? true : opt["autoFit"];
         this.options["autoResize"] = opt["autoResize"] === undefined ? true : opt["autoResize"];
     }
     /**
@@ -54,7 +55,9 @@ export class Viewer {
         this.setupCamera();
         this.setupControls();
         let valid = this.setupVisualization(data);
-        this.fitToCanvas();
+        if (this.options["autoFit"]) {
+            this.fitToCanvas();
+        }
         this.render();
         this.animate();
         return valid;
@@ -67,14 +70,11 @@ export class Viewer {
     loadJSON(url) {
         // Open file
         var xhr = new XMLHttpRequest();
-        xhr.open("GET", url, false);
+        xhr.onreadystatechange = () => {
+            this.load(JSON.parse(xhr.responseText));
+        };
+        xhr.open("GET", url, true);
         xhr.send();
-        if (xhr.status === 200) {
-            return this.load(JSON.parse(xhr.responseText));
-        }
-        else {
-            return false;
-        }
     }
     /**
      * This function can be used to setup any static assets in the
@@ -186,11 +186,7 @@ export class Viewer {
             });
         }
         else {
-            this.renderer = new THREE.CanvasRenderer({
-                alpha: true,
-                antialias: true,
-                preserveDrawingBuffer: this.saveBuffer
-            });
+            console.log("WebGL is not supported on this browser, cannot display structure.");
         }
         this.renderer.shadowMapEnabled = false;
         this.renderer.shadowMapType = THREE.PCFSoftShadowMap;
@@ -246,7 +242,9 @@ export class Viewer {
      */
     changeHostElement(hostElement) {
         this.setupHostElement(hostElement);
-        this.fitToCanvas();
+        if (this.options["autoFit"]) {
+            this.fitToCanvas();
+        }
         this.render();
     }
     /*
@@ -256,6 +254,7 @@ export class Viewer {
     setupControls() {
         let controls = new THREE.OrthographicControls(this.camera, this.rootElement);
         controls.rotateSpeed = this.options.rotateSpeed;
+        controls.rotationCenter = new THREE.Vector3();
         controls.zoomSpeed = this.options.zoomSpeed;
         controls.panSpeed = this.options.panSpeed;
         controls.enableZoom = this.options["enableZoom"];
@@ -287,7 +286,7 @@ export class Viewer {
             this.cornerPoints.localToWorld(screenPos);
             centerPos.add(screenPos);
         }
-        centerPos.multiplyScalar(1 / this.cornerPoints.geometry.vertices.length);
+        centerPos.divideScalar(this.cornerPoints.geometry.vertices.length);
         for (let len = this.cornerPoints.geometry.vertices.length, i = 0; i < len; ++i) {
             let screenPos = this.cornerPoints.geometry.vertices[i].clone();
             this.cornerPoints.localToWorld(screenPos);
@@ -371,6 +370,21 @@ export class Viewer {
         this.camera.updateProjectionMatrix();
     }
     /*
+     * Get the current zoom level for the visualization.
+     */
+    getZoom() {
+        return this.camera.zoom;
+    }
+    /**
+     * Sets the zoom level for the visualization.
+     *
+     * @param zoom - The wanted zoom level as a floating point number.
+     */
+    setZoom(zoom) {
+        this.camera.zoom = zoom;
+        this.camera.updateProjectionMatrix();
+    }
+    /*
      * Callback function that is invoked when the window is resized.
      */
     resizeCanvasToHostElement() {
@@ -388,7 +402,9 @@ export class Viewer {
     }
     onWindowResize() {
         this.resizeCanvasToHostElement();
-        this.fitToCanvas();
+        if (this.options["autoFit"]) {
+            this.fitToCanvas();
+        }
         this.render();
     }
     /*

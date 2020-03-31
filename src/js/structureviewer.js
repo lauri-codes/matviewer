@@ -302,11 +302,11 @@ export class StructureViewer extends Viewer {
         this.options["showCopies"] = opt["showCopies"] === undefined ? false : opt["showCopies"];
         this.options["showCell"] = opt["showCell"] === undefined ? true : opt["showCell"];
         this.options["wrap"] = opt["wrap"] === undefined ? true : opt["wrap"];
-        this.options["showUnit"] = opt["showUnit"] === undefined ? true : opt["showUnit"];
         this.options["radiusScale"] = opt["radiusScale"] === undefined ? 1 : opt["radiusScale"];
         this.options["bondScale"] = opt["bondScale"] === undefined ? 1 : opt["bondScale"];
         this.options["translation"] = opt["translation"] === undefined ? [0, 0, 0] : opt["translation"];
         this.options["zoomLevel"] = opt["zoomLevel"] === undefined ? 1 : opt["zoomLevel"];
+        this.options["viewCenter"] = opt["viewCenter"] === undefined ? "COP" : opt["viewCenter"];
         // Handle base class settings
         super.handleSettings(opt);
     }
@@ -334,13 +334,8 @@ export class StructureViewer extends Viewer {
         let atomicNumbers = data["atomicNumbers"];
         let chemicalSymbols = data["chemicalSymbols"];
         let periodicity = data["pbc"];
-        let unitData = data["unit"];
+        let bonds = data["bonds"];
         this.tags = data["tags"];
-        let classification = data["classification"];
-        if (!cell) {
-            console.log("No normalized cell given to the structure viewer");
-            return false;
-        }
         if (!scaledPositions && !positions) {
             console.log("No atom positions given to the structure viewer");
             return false;
@@ -356,6 +351,16 @@ export class StructureViewer extends Viewer {
             });
         }
         ;
+        // If bonds are not explicitly stated, determine them automatically.
+        if (!bonds) {
+            bonds == "auto";
+        }
+        else {
+            if (bonds != "off" && bonds != "auto" && !Array.isArray(bonds)) {
+                console.log("Invalid value for 'bonds'. Use either 'auto', 'off' or provide a list of index pairs. If not defined, 'auto' is assumed.");
+                return false;
+            }
+        }
         if (positions) {
             if (positions.length != atomicNumbers.length) {
                 console.log("The number of positions does not match the number of labels.");
@@ -368,52 +373,6 @@ export class StructureViewer extends Viewer {
                 return false;
             }
         }
-        // Is the structure allowed to be repeated
-        if ((classification == "Surface") || (classification == "Material2D") || (classification == "Class2D")) {
-            this.options.allowRepeat = false;
-            this.options.wrap = false;
-            this.options.showCopies = false;
-        }
-        // If the periodic unit is given, initialize another instance of the
-        // StructureViewer for it
-        if (this.options.showUnit) {
-            if (!((unitData == undefined) || (unitData == null))) {
-                let unitDiv1 = document.createElement('div');
-                unitDiv1.style.position = "fixed";
-                unitDiv1.style.top = "5%";
-                unitDiv1.style.right = "5%";
-                unitDiv1.style.width = "25%";
-                unitDiv1.style.height = "25%";
-                this.rootElement.appendChild(unitDiv1);
-                this.unitDiv = unitDiv1;
-                let unitDiv2 = document.createElement('div');
-                unitDiv2.id = "unitCanvas";
-                unitDiv2.style.width = "100%";
-                unitDiv2.style["padding-top"] = "100%";
-                unitDiv2.style.position = "relative";
-                unitDiv1.appendChild(unitDiv2);
-                let unitDiv3 = document.createElement('div');
-                unitDiv3.style.position = "absolute";
-                unitDiv3.style.top = 0;
-                unitDiv3.style.left = 0;
-                unitDiv3.style.bottom = 0;
-                unitDiv3.style.right = 0;
-                unitDiv2.appendChild(unitDiv3);
-                unitData["classification"] = classification;
-                // New viewer with options and legend disabled.
-                let options = {
-                    "showOptions": false,
-                    "showCopies": false,
-                    "show": false,
-                    "wrap": false,
-                    "showParam": false,
-                    "showLegend": false
-                };
-                let viewer = new StructureViewer(unitDiv3, false, options);
-                viewer.load(unitData);
-                viewer.toggleElementLegend(false);
-            }
-        }
         // Assume 3D periodicity if not defined
         if ((periodicity == undefined) || (periodicity == null)) {
             periodicity = [true, true, true];
@@ -424,7 +383,6 @@ export class StructureViewer extends Viewer {
         this.cellVectorLines = new THREE.Object3D();
         this.angleArcs = new THREE.Object3D();
         this.root.add(this.cellVectorLines);
-        //this.root.add(this.angleArcs);
         this.root.add(this.atoms);
         this.root.add(this.bonds);
         this.sceneStructure.add(this.root);
@@ -473,6 +431,8 @@ export class StructureViewer extends Viewer {
                 relPos.push(iRelPos);
             }
         }
+        // Determine the corner points that are used to properly fit the structure into the viewer.
+        this.createVizualizationBoundaryPositions(cartPos, atomicNumbers);
         // Determine the periodicity and setup the vizualization accordingly
         let nPeriodic = 0;
         let periodicIndices = [];
@@ -515,6 +475,25 @@ export class StructureViewer extends Viewer {
         else if (nPeriodic === 3) {
             this.setup3D(relPos, cartPos, atomicNumbers);
         }
+        // Create bonds
+        this.createBonds(bonds);
+        // Setup the view center
+        let viewCenter = this.options["viewCenter"];
+        let centerPos;
+        if (viewCenter === "COP") {
+            centerPos = this.calculateCOP(cartPos);
+        }
+        else if (viewCenter === "COC") {
+            centerPos = new THREE.Vector3()
+                .add(this.basisVectors[0])
+                .add(this.basisVectors[1])
+                .add(this.basisVectors[2])
+                .multiplyScalar(0.5);
+        }
+        else if (Array.isArray(viewCenter)) {
+            centerPos = new THREE.Vector3().fromArray(viewCenter);
+        }
+        this.setViewCenter(centerPos);
         // Translate the system according to given option
         this.translate(this.options.translation);
         // Zoom according to given option
@@ -525,6 +504,52 @@ export class StructureViewer extends Viewer {
         this.createElementLegend();
         this.optionsHandler();
         return true;
+    }
+    /**
+     *
+     */
+    calculateCOP(positions) {
+        let nPos = positions.length;
+        let sum = new THREE.Vector3();
+        for (let i = 0; i < nPos; ++i) {
+            let pos = positions[i];
+            sum.add(pos);
+        }
+        sum.divideScalar(nPos);
+        return sum;
+    }
+    /**
+     * Centers the visualization around a specific point.
+     * @param centerPos - The center position as a cartesian vector.
+     */
+    setViewCenter(centerPos) {
+        this.cornerPoints.position.sub(centerPos);
+        this.atoms.position.sub(centerPos);
+        this.bonds.position.sub(centerPos);
+        this.latticeParameters.position.sub(centerPos);
+        this.angleArcs.position.sub(centerPos);
+        this.convCell.position.sub(centerPos);
+        this.render();
+    }
+    /**
+     * Translate the atoms.
+     *
+     * @param translation - Cartesian translation to apply.
+     */
+    translate(translation) {
+        let vec = new THREE.Vector3().fromArray(translation);
+        this.atoms.position.add(vec);
+        this.bonds.position.add(vec);
+        this.render();
+    }
+    /**
+     * Set the zoom level
+     *
+     * @param zoomLevel - The zoom level as a scalar.
+     */
+    setZoom(zoomLevel) {
+        this.camera.zoom = zoomLevel;
+        this.render();
     }
     /**
      *
@@ -1063,35 +1088,90 @@ export class StructureViewer extends Viewer {
         }
         return result;
     }
-    /**
-     * Creates 8 corner points that will represent the visualized area and
-     * store them for fitting the area to the visualization element. Also store
-     * the basis vectors that are given as input.
-     *
-     * @param origin - The origin for creating the cornerpoints
-     * @param basisVectors - The vectors that define the rhombohedron whose
-     *     corners will become the corner points.
-     */
-    createCornerPoints(origin, basisVectors) {
-        var geometry = new THREE.Geometry();
-        geometry.vertices.push(origin);
-        let opposite = origin.clone().add(basisVectors[0]).add(basisVectors[1]).add(basisVectors[2]);
-        geometry.vertices.push(opposite);
-        for (let len = basisVectors.length, i = 0; i < len; ++i) {
-            // Corners close to origin
-            let position1 = origin.clone().add(basisVectors[i].clone());
-            geometry.vertices.push(position1);
-            // Corners close to opposite point of origin
-            let position2 = opposite.clone().sub(position1);
-            geometry.vertices.push(position2);
+    createVizualizationBoundaryPositions(positions, atomicNumbers) {
+        // Determine the maximum and minimum values in all cartesian components
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        let maxZ = -Infinity;
+        let minX = Infinity;
+        let minY = Infinity;
+        let minZ = Infinity;
+        let maxRadii = 0;
+        for (let len = positions.length, i = 0; i < len; ++i) {
+            let iPos = positions[i];
+            let iX = iPos.x;
+            if (iX > maxX) {
+                maxX = iX;
+            }
+            if (iX < minX) {
+                minX = iX;
+            }
+            let iY = iPos.y;
+            if (iY > maxY) {
+                maxY = iY;
+            }
+            if (iY < minY) {
+                minY = iY;
+            }
+            let iZ = iPos.z;
+            if (iZ > maxZ) {
+                maxZ = iZ;
+            }
+            if (iZ < minZ) {
+                minZ = iZ;
+            }
+            // Determine maximum radius that will be added to the visualization boundaries
+            let iRadius = this.elementRadii[atomicNumbers[i]];
+            if (iRadius > maxRadii) {
+                maxRadii = iRadius;
+            }
         }
-        this.cornerPoints = new THREE.Points(geometry);
-        this.cornerPoints.visible = false;
-        this.vizBasisVectors = basisVectors;
-        this.vizOrigin = origin;
+        // Add max atomic radii to boundaries
+        // Push the corners of the cuboid as cornerpoints
+        let origin = new THREE.Vector3(minX - maxRadii, minY - maxRadii, minZ - maxRadii);
+        let basisX = new THREE.Vector3(maxX - minX + 2 * maxRadii, 0, 0);
+        let basisY = new THREE.Vector3(0, maxY - minY + 2 * maxRadii, 0);
+        let basisZ = new THREE.Vector3(0, 0, maxZ - minZ + 2 * maxRadii);
+        let basis = [basisX, basisY, basisZ];
+        // Get cuboid
+        let pointGeometry = this.createCornerPoints(origin, basis);
+        let points = new THREE.Points(pointGeometry);
+        points.visible = false;
+        this.cornerPoints = points;
         // Must add the point to root because otherwise they will not be
         // included in the transforms.
         this.root.add(this.cornerPoints);
+    }
+    createVizualizationBoundaryCell(origin, basis) {
+        // Get cuboid
+        let pointGeometry = this.createCornerPoints(origin, basis);
+        let points = new THREE.Points(pointGeometry);
+        points.visible = false;
+        this.cornerPoints = points;
+        // Must add the point to root because otherwise they will not be
+        // included in the transforms.
+        this.root.add(this.cornerPoints);
+    }
+    /**
+     * Creates 8 corner points for the given cuboid.
+     *
+     * @param origin - The origin of the cuboid.
+     * @param basis - The vectors that define the cuboid.
+     */
+    createCornerPoints(origin, basis) {
+        var geometry = new THREE.Geometry();
+        geometry.vertices.push(origin);
+        let opposite = origin.clone().add(basis[0]).add(basis[1]).add(basis[2]);
+        geometry.vertices.push(opposite);
+        for (let len = basis.length, i = 0; i < len; ++i) {
+            // Corners close to origin
+            let position1 = origin.clone().add(basis[i].clone());
+            geometry.vertices.push(position1);
+            // Corners close to opposite point of origin
+            let position2 = opposite.clone().sub(basis[i].clone());
+            geometry.vertices.push(position2);
+        }
+        return geometry;
     }
     /**
      * Create the conventional cell
@@ -1222,7 +1302,6 @@ export class StructureViewer extends Viewer {
      * slightly to emphasize 3D nature.
      */
     setupInitialView1D(periodicity) {
-        this.center();
         // Rotate so that the chosen axis points to top
         this.root.updateMatrixWorld(); // The positions are not otherwise updated properly
         let startAxis;
@@ -1256,7 +1335,6 @@ export class StructureViewer extends Viewer {
      * slightly to emphasize 3D nature.
      */
     setupInitialView2D(periodicity, periodicIndices) {
-        this.center();
         let a = this.basisVectors[periodicIndices[0]].clone();
         let c = [1, 1, 1];
         for (let i = 0; i < periodicIndices.length; ++i) {
@@ -1292,7 +1370,6 @@ export class StructureViewer extends Viewer {
      * slightly to emphasize 3D nature.
      */
     setupInitialView3D() {
-        this.center();
         let a = this.basisVectors[0];
         let b = this.basisVectors[1];
         let c = this.basisVectors[2];
@@ -1333,29 +1410,6 @@ export class StructureViewer extends Viewer {
         let tiltAngle = Math.PI / 12;
         this.rotateAroundWorldAxis(this.root, tiltAxis, tiltAngle);
         this.rotateAroundWorldAxis(this.sceneInfo, tiltAxis, tiltAngle);
-    }
-    /**
-     * Centers the middle of the system to origin. The system size is defined
-     * by the cornerpoints.
-     */
-    center() {
-        let cellHalfDiagonal = new THREE.Vector3()
-            .add(this.vizBasisVectors[0])
-            .add(this.vizBasisVectors[1])
-            .add(this.vizBasisVectors[2])
-            .multiplyScalar(0.5);
-        let cellMiddle = this.vizOrigin.clone().add(cellHalfDiagonal).multiplyScalar(-1);
-        // Center everything on cell center point
-        let children = this.root.children;
-        for (let len = children.length, i = 0; i < len; ++i) {
-            let child = children[i];
-            child.position.add(cellMiddle);
-        }
-        let childrenInfo = this.sceneInfo.children;
-        for (let len = childrenInfo.length, i = 0; i < len; ++i) {
-            let child = childrenInfo[i];
-            child.position.add(cellMiddle);
-        }
     }
     /**
      * Creates representation for all the given atoms.
@@ -1430,50 +1484,42 @@ export class StructureViewer extends Viewer {
     /**
      * Creates bonds between the atoms based on radii and distance.
      *
-     * @param positions - Positions of the atoms
-     * @param labels - The element numbers for the atoms
+     * @param bonds - A Nx2 list of atom indices specifying the bonded atoms. Alternatively
+     *                you can use "auto" to automatically create the bonds.
      */
-    createBonds() {
-        let nAtoms = this.atomPos.length;
+    createBonds(bonds = "auto") {
         this.bondFills = [];
-        for (let i = 0; i < nAtoms; ++i) {
-            for (let j = 0; j < nAtoms; ++j) {
-                if (j > i) {
-                    let pos1 = this.atomPos[i];
-                    let pos2 = this.atomPos[j];
-                    let num1 = this.atomNumbers[i];
-                    let num2 = this.atomNumbers[j];
-                    let distance = pos2.clone().sub(pos1).length();
-                    let radii1 = this.options.radiusScale * this.elementRadii[num1];
-                    let radii2 = this.options.radiusScale * this.elementRadii[num2];
-                    if (distance <= this.options.bondScale * 1.1 * (radii1 + radii2)) {
-                        this.addBond(i, j, pos1, pos2);
+        // Manual bonds
+        if (Array.isArray(bonds)) {
+            for (let bond of bonds) {
+                let i = bond[0];
+                let j = bond[1];
+                let pos1 = this.atomPos[i];
+                let pos2 = this.atomPos[j];
+                console.log(i, j, pos1, pos2);
+                this.addBond(i, j, pos1, pos2);
+            }
+            // Automatically detect bonds
+        }
+        else if (bonds === "auto") {
+            let nAtoms = this.atomPos.length;
+            for (let i = 0; i < nAtoms; ++i) {
+                for (let j = 0; j < nAtoms; ++j) {
+                    if (j > i) {
+                        let pos1 = this.atomPos[i];
+                        let pos2 = this.atomPos[j];
+                        let num1 = this.atomNumbers[i];
+                        let num2 = this.atomNumbers[j];
+                        let distance = pos2.clone().sub(pos1).length();
+                        let radii1 = this.options.radiusScale * this.elementRadii[num1];
+                        let radii2 = this.options.radiusScale * this.elementRadii[num2];
+                        if (distance <= this.options.bondScale * 1.1 * (radii1 + radii2)) {
+                            this.addBond(i, j, pos1, pos2);
+                        }
                     }
                 }
             }
         }
-    }
-    /**
-     * Translate the atoms.
-     *
-     * @param positions - Positions of the atoms
-     * @param labels - The element numbers for the atoms
-     */
-    translate(translation) {
-        let vec = new THREE.Vector3().fromArray(translation);
-        this.atoms.position.add(vec);
-        this.bonds.position.add(vec);
-        this.render();
-    }
-    /**
-     * Set the zoom level
-     *
-     * @param positions - Positions of the atoms
-     * @param labels - The element numbers for the atoms
-     */
-    setZoom(zoomLevel) {
-        this.camera.zoom = zoomLevel;
-        this.render();
     }
     /**
      * Used to check if the given relative position component is almost the
@@ -1498,8 +1544,8 @@ export class StructureViewer extends Viewer {
      */
     addBond(i, j, pos1, pos2) {
         // Bond
-        let radius = 0.075;
-        let bondMaterial = new THREE.MeshPhongMaterial({ color: 0xFFFFFF });
+        let radius = 0.08;
+        let bondMaterial = new THREE.MeshPhongMaterial({ color: 0xFFFFFF, shininess: 30 });
         let cylinder = this.createCylinder(pos1, pos2, radius, 10, bondMaterial);
         cylinder.name = "fill";
         this.bondFills.push(cylinder);
@@ -1534,7 +1580,7 @@ export class StructureViewer extends Viewer {
             // Atom
             let color = this.elementColors[atomicNumber];
             let atomGeometry = new THREE.SphereGeometry(radius, nSegments, nSegments);
-            let atomMaterial = new THREE.MeshPhongMaterial({ color: color });
+            let atomMaterial = new THREE.MeshPhongMaterial({ color: color, shininess: 30 });
             let atom = new THREE.Mesh(atomGeometry, atomMaterial);
             // Atom outline hack
             let addition = 0.03;
@@ -1626,8 +1672,6 @@ export class StructureViewer extends Viewer {
         this.createConventionalCell([false, false, false], this.options.showCell);
         this.createPrimitiveCell([false, false, false], this.options.showCell);
         this.createAtoms(relPos, labels, false);
-        this.createBonds();
-        this.createCornerPoints(new THREE.Vector3(), this.basisVectors);
         this.createLatticeParameters(this.basisVectors, [false, false, false]);
     }
     /**
@@ -1674,16 +1718,6 @@ export class StructureViewer extends Viewer {
             this.createPrimitiveCell(periodicity);
         }
         this.createAtoms(relPos, labels, false);
-        this.createBonds();
-        // Set extended cornerpoints
-        let cornerPoints = [];
-        cornerPoints.push(this.basisVectors[0].clone());
-        cornerPoints.push(this.basisVectors[1].clone());
-        cornerPoints.push(this.basisVectors[2].clone());
-        cornerPoints[dim].multiplyScalar(2 * multiplier + 1);
-        let cornerOrigin = new THREE.Vector3();
-        cornerOrigin.add(translation1.multiplyScalar(-multiplier));
-        this.createCornerPoints(cornerOrigin, cornerPoints);
         this.createLatticeParameters(this.basisVectors, periodicity);
         this.setupInitialView1D(periodicity);
     }
@@ -1748,15 +1782,6 @@ export class StructureViewer extends Viewer {
         this.createConventionalCell(periodicity, this.options.showCell);
         this.createPrimitiveCell(periodicity, this.options.showCell);
         this.createAtoms(relPos, labels, false);
-        this.createBonds();
-        // Set extended cornerpoints
-        let cornerPoints = [];
-        cornerPoints.push(this.basisVectors[0].clone());
-        cornerPoints.push(this.basisVectors[1].clone());
-        cornerPoints.push(this.basisVectors[2].clone());
-        cornerPoints[dim1].multiplyScalar(width + 1);
-        cornerPoints[dim2].multiplyScalar(height + 1);
-        this.createCornerPoints(new THREE.Vector3(), cornerPoints);
         this.createLatticeParameters(this.basisVectors, periodicity, periodicIndices);
         this.setupInitialView2D(periodicity, periodicIndices);
     }
@@ -1767,8 +1792,6 @@ export class StructureViewer extends Viewer {
         this.createConventionalCell([true, true, true], this.options.showCell);
         this.createPrimitiveCell([true, true, true], this.options.showCell);
         this.createAtoms(relPos, labels, this.options.showCopies);
-        this.createBonds();
-        this.createCornerPoints(new THREE.Vector3(), this.basisVectors);
         this.createLatticeParameters(this.basisVectors, [true, true, true]);
         this.setupInitialView3D();
     }

@@ -6,7 +6,7 @@
  * @author Lauri Himanen
  */
 
-THREE.OrthographicControls = function ( object, domElement ) {
+THREE.OrthographicControls = function (object, domElement) {
 
 	var _this = this;
 	var STATE = { NONE: - 1, ROTATE: 0, ZOOM: 1, PAN: 2, TOUCH_ROTATE: 3, TOUCH_ZOOM_PAN: 4 };
@@ -29,6 +29,7 @@ THREE.OrthographicControls = function ( object, domElement ) {
 	this.keys = [ 65 /*A*/, 83 /*S*/, 68 /*D*/ ];
 
 	// Private
+	this.rotationCenter = new THREE.Vector3();
 	this.target = new THREE.Vector3();
 	var EPS = 0.000001;
 	var lastPosition = new THREE.Vector3();
@@ -48,6 +49,7 @@ THREE.OrthographicControls = function ( object, domElement ) {
     _zoomed = false;
 
 	// For reset
+	this.rotationCenter0 = this.rotationCenter.clone();
 	this.target0 = this.target.clone();
 	this.position0 = this.object.position.clone();
 	this.up0 = this.object.up.clone();
@@ -122,7 +124,7 @@ THREE.OrthographicControls = function ( object, domElement ) {
 
 			if ( angle ) {
 
-				_eye.copy( _this.object.position ).sub( _this.target );
+				_eye.copy( _this.object.position ).sub( _this.rotationCenter );
 
 				eyeDirection.copy( _eye ).normalize();
 				objectUpDirection.copy( _this.object.up ).normalize();
@@ -149,7 +151,7 @@ THREE.OrthographicControls = function ( object, domElement ) {
 			} else if ( ! _this.staticMoving && _lastAngle ) {
 
 				_lastAngle *= Math.sqrt( 1.0 - _this.dynamicDampingFactor );
-				_eye.copy( _this.object.position ).sub( _this.target );
+				_eye.copy( _this.object.position ).sub( _this.rotationCenter );
 				quaternion.setFromAxisAngle( _lastAxis, _lastAngle );
 				_eye.applyQuaternion( quaternion );
 				_this.object.up.applyQuaternion( quaternion );
@@ -212,7 +214,7 @@ THREE.OrthographicControls = function ( object, domElement ) {
 				pan.add( objectUp.copy( _this.object.up ).setLength( mouseChange.y ) );
 
 				_this.object.position.add( pan );
-				_this.target.add( pan );
+                _this.rotationCenter.add( pan );
 
 				if ( _this.staticMoving ) {
 
@@ -236,14 +238,14 @@ THREE.OrthographicControls = function ( object, domElement ) {
 
 			if ( _eye.lengthSq() > _this.maxDistance * _this.maxDistance ) {
 
-				_this.object.position.addVectors( _this.target, _eye.setLength( _this.maxDistance ) );
+				_this.object.position.addVectors( _this.rotationCenter, _eye.setLength( _this.maxDistance ) );
 				_zoomStart.copy( _zoomEnd );
 
 			}
 
 			if ( _eye.lengthSq() < _this.minDistance * _this.minDistance ) {
 
-				_this.object.position.addVectors( _this.target, _eye.setLength( _this.minDistance ) );
+				_this.object.position.addVectors( _this.rotationCenter, _eye.setLength( _this.minDistance ) );
 				_zoomStart.copy( _zoomEnd );
 
 			}
@@ -254,7 +256,7 @@ THREE.OrthographicControls = function ( object, domElement ) {
 
 	this.update = function () {
 
-		_eye.subVectors( _this.object.position, _this.target );
+		_eye.subVectors( _this.object.position, _this.rotationCenter );
 
 		if ( _this.enableRotate ) {
 			_this.rotateCamera();
@@ -268,9 +270,9 @@ THREE.OrthographicControls = function ( object, domElement ) {
 			_this.panCamera();
 		}
 
-		_this.object.position.addVectors( _this.target, _eye );
+		_this.object.position.addVectors( _this.rotationCenter, _eye );
 		_this.checkDistances();
-		_this.object.lookAt( _this.target );
+		_this.object.lookAt( _this.rotationCenter );
 
 		if ( lastPosition.distanceToSquared( _this.object.position ) > EPS || _zoomed) {
 			_this.dispatchEvent( changeEvent );
@@ -284,13 +286,13 @@ THREE.OrthographicControls = function ( object, domElement ) {
 		_state = STATE.NONE;
 		_prevState = STATE.NONE;
 
-		_this.target.copy( _this.target0 );
+		_this.rotationCenter.copy( _this.rotationCenter0 );
 		_this.object.position.copy( _this.position0 );
 		_this.object.up.copy( _this.up0 );
 
-		_eye.subVectors( _this.object.position, _this.target );
+		_eye.subVectors( _this.object.position, _this.rotationCenter );
 
-		_this.object.lookAt( _this.target );
+		_this.object.lookAt( _this.rotationCenter );
 
 		_this.dispatchEvent( changeEvent );
 
