@@ -2,11 +2,7 @@ import { Viewer } from "./viewer";
 /*
  * A 3D visualizer for the Brillouin Zone and the k-point path within it.
  */
-export class BrillouinZoneViewer extends Viewer {
-    constructor() {
-        super(...arguments);
-        this.fitMargin = 0.018; // The scene containing the information that is overlayed on top of the BZ
-    }
+export default class BrillouinZoneViewer extends Viewer {
     /*
      * Overrides the implementation from the base class, as we need two scenes:
      * one for the BZ mesh and another for the information that is laid on top.
@@ -17,7 +13,7 @@ export class BrillouinZoneViewer extends Viewer {
         this.scenes.push(this.sceneZone);
         this.sceneInfo = new THREE.Scene();
         this.scenes.push(this.sceneInfo);
-        this.setupControlVariables(10, 2.5, 50);
+        //this.setupControlVariables(10, 2.5, 50);
     }
     setupLights() {
         // White directional light shining from the top.
@@ -28,6 +24,11 @@ export class BrillouinZoneViewer extends Viewer {
         let ambientLight = new THREE.AmbientLight(0x404040, 4.1); // soft white light
         this.sceneZone.add(ambientLight);
     }
+    /**
+     * Used to initialize the viewer with data.
+     *
+     * @data {object} Data that describes the Brillouin Zone.
+     */
     setupVisualization(data) {
         // Add the Brillouin zone and the k-point path
         let vertices = data["vertices"];
@@ -49,6 +50,29 @@ export class BrillouinZoneViewer extends Viewer {
         this.setupInitialView();
         return true;
     }
+    /**
+     * Used to setup the visualization according to the given options.
+     */
+    handleSettings(opt) {
+        // The default settings object
+        let options = {
+            controls: {
+                rotateSpeed: 40,
+                enablePan: false
+            },
+            view: {
+                fitMargin: 0.01,
+            },
+            brillouinZone: {
+                segments: {
+                    color: "#E56400"
+                }
+            }
+        };
+        this.fillOptions(opt, options);
+        // Handle base class settings
+        super.handleSettings(options);
+    }
     setupInitialView() {
         //Rotate the scene so that the first basis vector is pointing up.
         let yAxis = new THREE.Vector3(0, 1, 0);
@@ -66,7 +90,7 @@ export class BrillouinZoneViewer extends Viewer {
         let nLabelPoints = this.labelPoints.length;
         for (let iSegmentPoint = 0; iSegmentPoint < nLabelPoints; ++iSegmentPoint) {
             let segmentPoint = this.labelPoints[iSegmentPoint];
-            average.add(segmentPoint.getWorldPosition());
+            average.add(segmentPoint.getWorldPosition(new THREE.Vector3()));
         }
         average.multiplyScalar(1 / nLabelPoints);
         average.y = 0;
@@ -137,7 +161,7 @@ export class BrillouinZoneViewer extends Viewer {
         // Compute normals that are needed for shading the surface
         bzGeometry.computeFaceNormals();
         // Create the reciprocal space axes
-        function createAxisLabel(position, label) {
+        let createAxisLabel = (position, label) => {
             // Configure canvas
             let canvas = document.createElement('canvas');
             let size = 256;
@@ -146,7 +170,7 @@ export class BrillouinZoneViewer extends Viewer {
             let ctx = canvas.getContext('2d');
             // Draw label
             ctx.fillStyle = "#000000";
-            ctx.font = "90px Arimo";
+            ctx.font = "90px " + this.options.font.family;
             ctx.textAlign = "center";
             ctx.fillText(label, size / 2, size / 2);
             let texture = new THREE.Texture(canvas);
@@ -157,7 +181,7 @@ export class BrillouinZoneViewer extends Viewer {
             let scale = 1 / 11;
             sprite.scale.set(scale, scale, 1);
             return sprite;
-        }
+        };
         for (let iBasis = 0; iBasis < 3; ++iBasis) {
             let length = 0.7;
             let basisVector = basis[iBasis];
@@ -176,7 +200,7 @@ export class BrillouinZoneViewer extends Viewer {
                 gapSize: 0.005
             });
             let line = new THREE.Line(lineGeometry, lineMaterial);
-            line.geometry.computeLineDistances();
+            line.computeLineDistances();
             this.info.add(line);
             // Add an axis label
             let textOffset = 0.020;
@@ -213,7 +237,7 @@ export class BrillouinZoneViewer extends Viewer {
         let basisMatrix = new THREE.Matrix3().fromArray(merged);
         let labelMap = {};
         let labelPositions = [];
-        function generateSymmPoint(position, label) {
+        let generateSymmPoint = (position, label) => {
             // Configure canvas
             let canvas = document.createElement('canvas');
             let size = 256;
@@ -223,16 +247,11 @@ export class BrillouinZoneViewer extends Viewer {
             // Draw circle
             ctx.beginPath();
             ctx.arc(size / 2, size / 2, size / 15, 0, 2 * Math.PI);
-            ctx.fillStyle = "#E56400";
+            ctx.fillStyle = this.options.brillouinZone.segments.color;
             ctx.fill();
-            // Don't draw unknown labels
-            //let newLabel = label;
-            //if (label == "?") {
-            //label = "";
-            //}
             // Draw label
             ctx.fillStyle = "#000000";
-            ctx.font = "100px Arimo";
+            ctx.font = "100px " + this.options.font.family;
             ctx.textAlign = "center";
             ctx.fillText(label, canvas.width / 2, 80);
             let texture = new THREE.Texture(canvas);
@@ -243,10 +262,12 @@ export class BrillouinZoneViewer extends Viewer {
             let scale = 1 / 15;
             sprite.scale.set(scale, scale, 1);
             return sprite;
-        }
-        // Create the k-point path from the given segments
+        };
+        // Create the k-point path from the given segments. Currently assumes
+        // that the segments are linear and the segment path is determined by
+        // the start and end point.
         let kpathMaterial = new THREE.LineBasicMaterial({
-            color: "#E56400",
+            color: this.options.brillouinZone.segments.color,
             linewidth: 3,
         });
         let kpathGeometry = new THREE.Geometry();
@@ -254,7 +275,8 @@ export class BrillouinZoneViewer extends Viewer {
         for (let iSegment = 0; iSegment < segments.length; ++iSegment) {
             let segment = segments[iSegment];
             let nKpoints = segment.length;
-            for (let iKpoint = 0; iKpoint < nKpoints; ++iKpoint) {
+            let kPointIndices = [0, nKpoints - 1];
+            for (let iKpoint of kPointIndices) {
                 let kpoint = new THREE.Vector3().fromArray(segment[iKpoint]).multiplyScalar(1E-10);
                 kpoint.applyMatrix3(basisMatrix);
                 kpathGeometry.vertices.push(kpoint);
@@ -296,5 +318,6 @@ export class BrillouinZoneViewer extends Viewer {
         let mesh = new THREE.Mesh(bzGeometry, bzMaterial);
         this.zone.add(mesh);
         this.cornerPoints = new THREE.Points(bzGeometry);
+        this.cornerPoints.visible = true;
     }
 }

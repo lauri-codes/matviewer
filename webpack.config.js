@@ -2,11 +2,11 @@ const path = require('path');
 
 module.exports = {
   entry: [
-      './src/js/structureviewer.js',
+      './src/js/entry.js',
   ],
   output: {
     path: path.resolve(__dirname, 'dist/js'),
-    filename: 'structureviewer.min.js',
+    filename: 'matviewer.min.js',
     library: 'matviewer',
     libraryTarget: 'var'
   }

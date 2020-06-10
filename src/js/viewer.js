@@ -15,7 +15,6 @@ export class Viewer {
         this.saveBuffer = saveBuffer;
         this.scenes = []; // A list of scenes that are rendered
         this.cameraWidth = 10.0; // The default "width" of the camera
-        this.fitMargin = 0.5; // The margin that is left between the cell corners and the screen edge in pixels
         this.options = {}; // Options for the viewer. Can be e.g. used to control which settings are enabled
         this.handleSettings(options);
         this.setupRootElement();
@@ -25,20 +24,59 @@ export class Viewer {
         this.setupCamera();
         this.setupControls();
         this.setupHostElement(hostElement);
-        if (this.options.autoResize) {
+        if (this.options.view.autoResize) {
             window.addEventListener('resize', this.onWindowResize.bind(this), false);
         }
     }
     handleSettings(opt) {
-        // Controls settings
-        this.options["enableZoom"] = opt["enableZoom"] === undefined ? true : opt["enableZoom"];
-        this.options["enableRotate"] = opt["enableRotate"] === undefined ? true : opt["enableRotate"];
-        this.options["enablePan"] = opt["enablePan"] === undefined ? true : opt["enablePan"];
-        this.options["panSpeed"] = opt["panSpeed"] === undefined ? 10 : opt["panSpeed"];
-        this.options["zoomSpeed"] = opt["zoomSpeed"] === undefined ? 2.5 : opt["zoomSpeed"];
-        this.options["rotateSpeed"] = opt["rotateSpeed"] === undefined ? 2.5 : opt["rotateSpeed"];
-        this.options["autoFit"] = opt["autoFit"] === undefined ? true : opt["autoFit"];
-        this.options["autoResize"] = opt["autoResize"] === undefined ? true : opt["autoResize"];
+        // The default settings object
+        let options = {
+            controls: {
+                enableZoom: true,
+                enableRotate: true,
+                enablePan: true,
+                panSpeed: 10,
+                zoomSpeed: 2.5,
+                rotateSpeed: 2.5,
+                zoomLevel: 1,
+            },
+            view: {
+                autoFit: true,
+                autoResize: true,
+                fitMargin: 0.5,
+            },
+            font: {
+                family: "Arial"
+            },
+        };
+        // Save custom settings
+        this.fillOptions(opt, options);
+        this.options = options;
+    }
+    /**
+     * Used to recursively fill the target options with options stored in the
+     * source object.
+     */
+    fillOptions(source, target) {
+        // Overrride with settings from user and child class
+        function eachRecursive(source, target, level) {
+            for (var k in source) {
+                // Find variable in default settings
+                if (typeof source[k] == "object" && source[k] !== null) {
+                    // If the current level is not defined in the target, it is
+                    // initialized with empty object.
+                    if (target[k] === undefined) {
+                        target[k] = {};
+                    }
+                    eachRecursive(source[k], target[k]);
+                }
+                else {
+                    // We store each leaf property into the default settings
+                    target[k] = source[k];
+                }
+            }
+        }
+        eachRecursive(source, target);
     }
     /**
      * This function will clear the old view and visualize the new Brilloun
@@ -55,7 +93,7 @@ export class Viewer {
         this.setupCamera();
         this.setupControls();
         let valid = this.setupVisualization(data);
-        if (this.options["autoFit"]) {
+        if (this.options.view.autoFit) {
             this.fitToCanvas();
         }
         this.render();
@@ -188,8 +226,8 @@ export class Viewer {
         else {
             console.log("WebGL is not supported on this browser, cannot display structure.");
         }
-        this.renderer.shadowMapEnabled = false;
-        this.renderer.shadowMapType = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.enabled = false;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.setSize(this.rootElement.clientWidth, this.rootElement.clientHeight);
         this.renderer.setClearColor(0xffffff, 0); // The clear color is set to fully transparent to support custom backgrounds
         this.rootElement.appendChild(this.renderer.domElement);
@@ -242,7 +280,7 @@ export class Viewer {
      */
     changeHostElement(hostElement) {
         this.setupHostElement(hostElement);
-        if (this.options["autoFit"]) {
+        if (this.options.view.autoFit) {
             this.fitToCanvas();
         }
         this.render();
@@ -253,18 +291,39 @@ export class Viewer {
      */
     setupControls() {
         let controls = new THREE.OrthographicControls(this.camera, this.rootElement);
-        controls.rotateSpeed = this.options.rotateSpeed;
+        controls.rotateSpeed = this.options.controls.rotateSpeed;
         controls.rotationCenter = new THREE.Vector3();
-        controls.zoomSpeed = this.options.zoomSpeed;
-        controls.panSpeed = this.options.panSpeed;
-        controls.enableZoom = this.options["enableZoom"];
-        controls.enablePan = this.options["enablePan"];
-        controls.enableRotate = this.options["enableRotate"];
+        controls.zoomSpeed = this.options.controls.zoomSpeed;
+        controls.panSpeed = this.options.controls.panSpeed;
+        controls.enableZoom = this.options.controls.enableZoom;
+        controls.enablePan = this.options.controls.enablePan;
+        controls.enableRotate = this.options.controls.enableRotate;
         controls.staticMoving = true;
         controls.dynamicDampingFactor = 0.25;
         controls.keys = [65, 83, 68];
         controls.addEventListener('change', this.render.bind(this));
         this.controls = controls;
+    }
+    /**
+     * Creates 8 corner points for the given cuboid.
+     *
+     * @param origin - The origin of the cuboid.
+     * @param basis - The vectors that define the cuboid.
+     */
+    createCornerPoints(origin, basis) {
+        var geometry = new THREE.Geometry();
+        geometry.vertices.push(origin);
+        let opposite = origin.clone().add(basis[0]).add(basis[1]).add(basis[2]);
+        geometry.vertices.push(opposite);
+        for (let len = basis.length, i = 0; i < len; ++i) {
+            // Corners close to origin
+            let position1 = origin.clone().add(basis[i].clone());
+            geometry.vertices.push(position1);
+            // Corners close to opposite point of origin
+            let position2 = opposite.clone().sub(basis[i].clone());
+            geometry.vertices.push(position2);
+        }
+        return geometry;
     }
     /**
      * This will automatically fit the structure to the given rendering area.
@@ -286,13 +345,12 @@ export class Viewer {
             this.cornerPoints.localToWorld(screenPos);
             centerPos.add(screenPos);
         }
-        centerPos.divideScalar(this.cornerPoints.geometry.vertices.length);
         for (let len = this.cornerPoints.geometry.vertices.length, i = 0; i < len; ++i) {
             let screenPos = this.cornerPoints.geometry.vertices[i].clone();
             this.cornerPoints.localToWorld(screenPos);
             // Default the zoom to 1 for the projection
             let oldZoom = this.camera.zoom;
-            this.camera.zoom = this.options.zoomLevel;
+            this.camera.zoom = this.options.controls.zoomLevel;
             this.camera.updateProjectionMatrix();
             // Figure out the direction from center
             let diff = centerPos.sub(screenPos);
@@ -302,7 +360,7 @@ export class Viewer {
             // Map to corner coordinates to
             screenPos.project(this.camera);
             // Add a margin
-            let margin = this.fitMargin;
+            let margin = this.options.view.fitMargin;
             let cameraUp = new THREE.Vector3(0, margin, 0);
             let cameraRight = new THREE.Vector3(margin, 0, 0);
             cameraUp.applyQuaternion(this.camera.quaternion);
@@ -402,7 +460,7 @@ export class Viewer {
     }
     onWindowResize() {
         this.resizeCanvasToHostElement();
-        if (this.options["autoFit"]) {
+        if (this.options.view.autoFit) {
             this.fitToCanvas();
         }
         this.render();

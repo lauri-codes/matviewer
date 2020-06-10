@@ -5,7 +5,7 @@ declare let THREE;
  * Class for visualizing a 3D crystal structure. Uses three.js to do the
  * visualization with WegGL or alternatively in html5 canvas.
  */
-export class StructureViewer extends Viewer {
+export default class StructureViewer extends Viewer {
     root:any;                             // three.js root object in the scene
     atoms:any;                            // three.js object for storing the atoms
     convCell:any;                         // three.js object for storing the cell
@@ -21,11 +21,8 @@ export class StructureViewer extends Viewer {
     sceneInfo:any;
     settings:Object;
     settingsHandler:any
-    datGui:any
     elementLegend:any;
     conerPoints:any;                      // Cornerpoints for the final visualized system
-    fitMargin:number = 0.5;                 // The scene containing the information that is overlayed on top of the BZ
-    //radiusFactor:number = 1;            // The factor that is used to scale the covalent radii of the atoms
 
     lights:any[];                         // Contains the lights in the scene
     bondFills:any[];                      // Contains the bulk of the bonds
@@ -61,27 +58,31 @@ export class StructureViewer extends Viewer {
      * Used to setup the visualization according to the given options.
      */
     handleSettings(opt:Object) {
+        let options =  {
+            view: {
+                fitMargin: 0.5,
+            },
+            structure: {
+                showParam: true,
+                createLegend: true,
+                showLegend: true,
+                showBonds: true,
+                allowRepeat: true
+                showCopies: false,
+                showCell: true,
+                wrap: true,
+                radiusScale: 1,
+                bondScale: 1,
+                translation: [0, 0, 0],
+                viewCenter: "COP",
+                showShadows: false,
+            },
+        }
 
-        // Controls settings
-        this.options["showParam"]     = opt["showParam"] === undefined     ? true  : opt["showParam"];
-        this.options["showLegend"]    = opt["showLegend"] === undefined    ? true  : opt["showLegend"];
-        this.options["showBonds"]     = opt["showBonds"] === undefined     ? true  : opt["showBonds"];
-        this.options["showShadows"]   = opt["showShadows"] === undefined   ? false : opt["showShadows"];
-        this.options["showTags"]      = opt["showTags"] === undefined      ? false : opt["showTags"];
-        this.options["showVacancies"] = opt["showVacancies"] === undefined ? false : opt["showVacancies"];
-        this.options["showOptions"]   = opt["showOptions"] === undefined   ? true  : opt["showOptions"];
-        this.options["allowRepeat"]   = opt["allowRepeat"] === undefined   ? true  : opt["allowRepeat"];
-        this.options["showCopies"]    = opt["showCopies"] === undefined    ? false : opt["showCopies"];
-        this.options["showCell"]      = opt["showCell"] === undefined      ? true  : opt["showCell"];
-        this.options["wrap"]          = opt["wrap"] === undefined          ? true  : opt["wrap"];
-        this.options["radiusScale"]   = opt["radiusScale"] === undefined   ? 1     : opt["radiusScale"];
-        this.options["bondScale"]     = opt["bondScale"] === undefined     ? 1     : opt["bondScale"];
-        this.options["translation"]   = opt["translation"] === undefined   ? [0, 0, 0] : opt["translation"];
-        this.options["zoomLevel"]     = opt["zoomLevel"] === undefined     ? 1     : opt["zoomLevel"];
-        this.options["viewCenter"]    = opt["viewCenter"] === undefined    ? "COP" : opt["viewCenter"];
+        this.fillOptions(opt, options);
 
         // Handle base class settings
-        super.handleSettings(opt);
+        super.handleSettings(options);
     }
 
     /**
@@ -179,7 +180,7 @@ export class StructureViewer extends Viewer {
                 let x = iRelPos.x;
                 let y = iRelPos.y;
                 let z = iRelPos.z;
-                if (this.options.wrap) {
+                if (this.options.structure.wrap) {
                     if (periodicity[0] && this.almostEqual(1, x, this.basisVectors[0], this.wrapTolerance)) {
                         x -= 1;
                     }
@@ -217,9 +218,6 @@ export class StructureViewer extends Viewer {
                 relPos.push(iRelPos);
             }
         }
-
-        // Determine the corner points that are used to properly fit the structure into the viewer.
-        this.createVizualizationBoundaryPositions(cartPos, atomicNumbers);
 
         // Determine the periodicity and setup the vizualization accordingly
         let nPeriodic = 0;
@@ -263,14 +261,22 @@ export class StructureViewer extends Viewer {
             this.setup3D(relPos, cartPos, atomicNumbers);
         }
 
+        // Determine the corner points that are used to properly fit the
+        // structure into the viewer. The fit takes also into account the
+        // periodic duplicates and atoms created at the boundary.
+        this.createVisualizationBoundaryPositions(this.atomPos, atomicNumbers);
+
         // Create bonds
         this.createBonds(bonds);
 
         // Setup the view center
-        let viewCenter = this.options["viewCenter"];
+        let viewCenter = this.options.structure.viewCenter;
         let centerPos;
+
+        // Center of positions takes into account also the repeated positions
+        // and positions created at the cell boundaries.
         if (viewCenter === "COP") {
-            centerPos = this.calculateCOP(cartPos);
+            centerPos = this.calculateCOP(this.atomPos);
         } else if (viewCenter === "COC") {
             centerPos = new THREE.Vector3()
                 .add(this.basisVectors[0])
@@ -283,17 +289,15 @@ export class StructureViewer extends Viewer {
         this.setViewCenter(centerPos);
 
         // Translate the system according to given option
-        this.translate(this.options.translation);
+        this.translate(this.options.structure.translation);
 
         // Zoom according to given option
-        this.setZoom(this.options.zoomLevel);
-
-        // Create the vacancy atoms if given
-        this.createVacancies()
+        this.setZoom(this.options.controls.zoomLevel);
 
         // Setup element legend and settings
-        this.createElementLegend();
-        this.optionsHandler();
+        if this.options.structure.createLegend) {
+            this.createElementLegend();
+        }
 
         return true;
     }
@@ -349,90 +353,20 @@ export class StructureViewer extends Viewer {
     }
 
     /**
-     *
-     */
-    createVacancies() {
-        if (this.tags) {
-            let vacancies = this.tags.vacancies;
-            if (vacancies) {
-                let relPos = [];
-                let labels = [];
-                for (let i=0; i < vacancies.length; ++i) {
-                    let vacancy = vacancies[i];
-                    relPos.push(new THREE.Vector3().fromArray(vacancy.position));
-                    labels.push(vacancy.label);
-                }
-                let meshMap = {};
-                this.vacancyContainer = new THREE.Object3D();
-                this.vacancyContainer.visible = false;
-                for (let len=relPos.length, i=0; i<len; ++i) {
-                    let iRelPos = relPos[i];
-
-                    // Add the primary atom
-                    let atomicNumber = labels[i];
-                    let atomData = this.createAtom(iRelPos, atomicNumber, meshMap);
-                    let atom = atomData[0];
-                    atom.material.opacity = 0.25;
-                    atom.material.transparent = true;
-                    let outline = atomData[1];
-                    outline.material.opacity = 0.25;
-                    outline.material.transparent = true;
-                    this.vacancyContainer.add(atom);
-                    this.vacancyContainer.add(outline);
-                }
-                this.atoms.add(this.vacancyContainer);
-            }
-        }
-    }
-
-    /**
      * This function will setup the dat.gui based settings window amd the
      * element legend div.
      */
     setupStatic() {
-
-        // Setup dat.gui settings window
-        this.optionsHandler = function( ) {
-            let showParam = this.options.showParam;
-            let showCell = this.options.showCell;
-            let showLegend = this.options.showLegend;
-            let showBonds = this.options.showBonds;
-            let showShadows = this.options.showShadows;
-            let showTags = this.options.showTags;
-            let showVacancies = this.options.showVacancies;
-            let showOptions = this.options.showOptions;
-            this.toggleLatticeParameters(showParam);
-            this.toggleCell(showCell);
-            this.toggleElementLegend(showLegend);
-            this.toggleBonds(showBonds);
-            this.toggleShadows(showShadows);
-            this.toggleTags(showTags);
-            this.toggleVacancies(showVacancies);
-            this.toggleOptions(showOptions);
-        }.bind(this);
-        this.datGui = new dat.GUI({autoPlace: false, width: 150});
-        this.datGui.domElement.id = "datgui"
-        this.datGui.domElement.style.display = "None";
-        this.datGui.close();
-        this.rootElement.appendChild(this.datGui.domElement)
-        this.datGui.add( this.options, "showParam", true ).name("Lattice parameters").onChange( this.optionsHandler );
-        this.datGui.add( this.options, "showCell", true ).name("Cell").onChange( this.optionsHandler );
-        this.datGui.add( this.options, "showLegend", true ).name("Element labels").onChange( this.optionsHandler );
-        this.datGui.add( this.options, "showBonds", true ).name("Bonds").onChange( this.optionsHandler );
-        this.datGui.add( this.options, "showShadows", false ).name("Shadows").onChange( this.optionsHandler );
-        this.datGui.add( this.options, "showTags", false ).name("Tags").onChange( this.optionsHandler );
-        this.datGui.add( this.options, "showVacancies", false ).name("Vacancies").onChange( this.optionsHandler );
-        this.datGui.add( this.options, "showOptions", false ).name("Options").onChange( this.optionsHandler );
-
-        // Setup div containing the element labels
-        var legendDiv = document.createElement('div');
-        legendDiv.id = 'elementlegend';
-        this.elementLegend = legendDiv;
-        this.rootElement.appendChild(legendDiv);
+        if (this.options.structure.createLegend) {
+            // Setup div containing the element labels
+            var legendDiv = document.createElement('div');
+            legendDiv.id = 'elementlegend';
+            this.elementLegend = legendDiv;
+            this.rootElement.appendChild(legendDiv);
+        }
     }
 
     setupLights() {
-
         this.lights = [];
         let shadowMapWidth = 2048;
 
@@ -474,104 +408,6 @@ export class StructureViewer extends Viewer {
             this.elementLegend.style.display = "flex";
         } else {
             this.elementLegend.style.display = "None";
-        }
-    }
-
-    /**
-     * Used to toggle the datGui options panel on or off
-     */
-    toggleOptions(value:boolean) {
-        if (value) {
-            this.datGui.domElement.style.display = "block";
-        } else {
-            this.datGui.domElement.style.display = "None";
-        }
-    }
-    /**
-     * Used to toggle the datGui options panel on or off
-     */
-    toggleVacancies(value:boolean) {
-        if (this.vacancyContainer) {
-            this.vacancyContainer.visible = value;
-            this.render();
-        }
-    }
-
-    /**
-     * Used to toggle the datGui options panel on or off
-     */
-    toggleTags(value:boolean) {
-        if (this.tags) {
-            if (value) {
-                var adsorbateColor = this.tagColorMap.adsorbates;
-                var substitutionColor = this.tagColorMap.substitutions;
-                var interstitialColor = this.tagColorMap.interstitials;
-                var unknownColor = this.tagColorMap.unknowns;
-                var outlierColor = this.tagColorMap.outliers;
-                var scale = 1.15;
-            } else {
-                var black = 0x000000;
-                var adsorbateColor = black;
-                var substitutionColor = black;
-                var outlierColor = black;
-                var scale = 1;
-            }
-            // Outliers
-            if (this.tags.additionals) {
-                for (let i=0; i < this.tags.additionals.length; ++i) {
-                    let index = this.tags.additionals[i];
-                    let mesh = this.atomOutlines[index];
-                    let mat = mesh.material.clone();
-                    mesh.scale.set(scale, scale, scale);
-                    mat.color.setHex(outlierColor);
-                    mesh.material = mat;
-                }
-            }
-            // Adsorbates
-            if (this.tags.adsorbates) {
-                for (let i=0; i < this.tags.adsorbates.length; ++i) {
-                    let index = this.tags.adsorbates[i];
-                    let mesh = this.atomOutlines[index];
-                    let mat = mesh.material.clone();
-                    mesh.scale.set(scale, scale, scale);
-                    mat.color.setHex(adsorbateColor);
-                    mesh.material = mat;
-                }
-            }
-            // Substitutions
-            if (this.tags.substitutions) {
-                for (let i=0; i < this.tags.substitutions.length; ++i) {
-                    let index = this.tags.substitutions[i];
-                    let mesh = this.atomOutlines[index];
-                    let mat = mesh.material.clone();
-                    mesh.scale.set(scale, scale, scale);
-                    mat.color.setHex(substitutionColor);
-                    mesh.material = mat;
-                }
-            }
-            // Interstitials
-            if (this.tags.interstitials) {
-                for (let i=0; i < this.tags.interstitials.length; ++i) {
-                    let index = this.tags.interstitials[i];
-                    let mesh = this.atomOutlines[index];
-                    let mat = mesh.material.clone();
-                    mesh.scale.set(scale, scale, scale);
-                    mat.color.setHex(interstitialColor);
-                    mesh.material = mat;
-                }
-            }
-            // Unknowns
-            if (this.tags.unknowns) {
-                for (let i=0; i < this.tags.unknowns.length; ++i) {
-                    let index = this.tags.unknowns[i];
-                    let mesh = this.atomOutlines[index];
-                    let mat = mesh.material.clone();
-                    mesh.scale.set(scale, scale, scale);
-                    mat.color.setHex(unknownColor);
-                    mesh.material = mat;
-                }
-            }
-            this.render();
         }
     }
 
@@ -702,8 +538,8 @@ export class StructureViewer extends Viewer {
             }
         }
 
-        // Create the reciprocal space axes
-        function createLabel(position:any, label:string, color, stroked:boolean=true) {
+        // Used to create a text label as sprite that lives in 3D space.
+        let createLabel = (position:any, label:string, color, stroked:boolean=true) => {
             // Configure canvas
             let canvas = document.createElement( 'canvas' );
             let size = 256;
@@ -714,10 +550,10 @@ export class StructureViewer extends Viewer {
             // Draw label
             ctx.fillStyle = color;
             //ctx.fillStyle = "#ffffff";
-            ctx.font = "155px Arimo";
+            ctx.font = "155px " + this.options.font.family;
             ctx.textAlign = "center";
             if (stroked) {
-                ctx.font = "160px Arimo";
+                ctx.font = "160px " + this.options.font.family;
                 ctx.lineWidth = 8;
                 ctx.strokeStyle="#000000";
                 ctx.strokeText(label, size/2, size/2);
@@ -930,7 +766,7 @@ export class StructureViewer extends Viewer {
         return result;
     }
 
-    createVizualizationBoundaryPositions(positions, atomicNumbers) {
+    createVisualizationBoundaryPositions(positions, atomicNumbers) {
         // Determine the maximum and minimum values in all cartesian components
         let maxX = -Infinity;
         let maxY = -Infinity;
@@ -990,7 +826,7 @@ export class StructureViewer extends Viewer {
         this.root.add(this.cornerPoints);
     }
 
-    createVizualizationBoundaryCell(origin, basis) {
+    createVisualizationBoundaryCell(origin, basis) {
         // Get cuboid
         let pointGeometry = this.createCornerPoints(origin, basis);
         let points = new THREE.Points(pointGeometry);
@@ -1000,32 +836,6 @@ export class StructureViewer extends Viewer {
         // Must add the point to root because otherwise they will not be
         // included in the transforms.
         this.root.add(this.cornerPoints);
-    }
-
-    /**
-     * Creates 8 corner points for the given cuboid.
-     *
-     * @param origin - The origin of the cuboid.
-     * @param basis - The vectors that define the cuboid.
-     */
-    createCornerPoints(origin, basis) {
-
-        var geometry = new THREE.Geometry();
-        geometry.vertices.push(origin);
-        let opposite = origin.clone().add(basis[0]).add(basis[1]).add(basis[2]);
-        geometry.vertices.push(opposite);
-
-        for (let len=basis.length, i=0; i<len; ++i) {
-            // Corners close to origin
-            let position1 = origin.clone().add(basis[i].clone());
-            geometry.vertices.push(position1);
-
-            // Corners close to opposite point of origin
-            let position2 = opposite.clone().sub(basis[i].clone());
-            geometry.vertices.push(position2);
-        }
-
-        return geometry;
     }
 
     /**
@@ -1311,8 +1121,8 @@ export class StructureViewer extends Viewer {
         // Rotate around the c-axis
         let tiltAxis2 = new THREE.Vector3().crossVectors(cameraVector, b);
         tiltAxis2.normalize();
-        //let tiltAngle2 = -Math.PI/3;
-        let tiltAngle2 = -Math.PI/6;
+        let tiltAngle2 = -Math.PI/3;
+        //let tiltAngle2 = -Math.PI/6;
         this.rotateAroundWorldAxis(this.root, tiltAxis2, tiltAngle2);
         this.rotateAroundWorldAxis(this.sceneInfo, tiltAxis2, tiltAngle2);
 
@@ -1320,8 +1130,8 @@ export class StructureViewer extends Viewer {
         // cameraVector and basis vector c
         let tiltAxis = new THREE.Vector3().crossVectors(cameraVector, c);
         tiltAxis.normalize();
-        //let tiltAngle = Math.PI/6;
-        let tiltAngle = Math.PI/12;
+        let tiltAngle = Math.PI/6;
+        //let tiltAngle = Math.PI/12;
         this.rotateAroundWorldAxis(this.root, tiltAxis, tiltAngle);
         this.rotateAroundWorldAxis(this.sceneInfo, tiltAxis, tiltAngle);
     }
@@ -1427,9 +1237,9 @@ export class StructureViewer extends Viewer {
                         let num1 = this.atomNumbers[i];
                         let num2 = this.atomNumbers[j];
                         let distance = pos2.clone().sub(pos1).length()
-                        let radii1 = this.options.radiusScale*this.elementRadii[num1]
-                        let radii2 = this.options.radiusScale*this.elementRadii[num2]
-                        if (distance <= this.options.bondScale*1.1*(radii1 + radii2)) {
+                        let radii1 = this.options.structure.radiusScale*this.elementRadii[num1]
+                        let radii2 = this.options.structure.radiusScale*this.elementRadii[num2]
+                        if (distance <= this.options.structure.bondScale*1.1*(radii1 + radii2)) {
                             this.addBond(i, j, pos1, pos2);
                         }
                     }
@@ -1495,7 +1305,7 @@ export class StructureViewer extends Viewer {
         if (!exists) {
             // Calculate the amount of segments that are needed to reach a
             // certain angle for the ball surface segements
-            let radius = this.options.radiusScale*this.elementRadii[atomicNumber];
+            let radius = this.options.structure.radiusScale*this.elementRadii[atomicNumber];
             let targetAngle = 165;
             let nSegments = Math.ceil(360/(180-targetAngle));
 
@@ -1604,8 +1414,8 @@ export class StructureViewer extends Viewer {
      * Setup the view for 0D systems (atoms, molecules).
      */
     setup0D(relPos, cartPos, labels) {
-        this.createConventionalCell([false, false, false], this.options.showCell);
-        this.createPrimitiveCell([false, false, false], this.options.showCell);
+        this.createConventionalCell([false, false, false], this.options.structure.showCell);
+        this.createPrimitiveCell([false, false, false], this.options.structure.showCell);
         this.createAtoms(relPos, labels, false);
         this.createLatticeParameters(this.basisVectors, [false, false, false]);
     }
@@ -1655,7 +1465,7 @@ export class StructureViewer extends Viewer {
         relPos.push.apply(relPos, newPos);
         labels.push.apply(labels, newLabels);
 
-        if (this.options.showCell) {
+        if (this.options.structure.showCell) {
             this.createConventionalCell(periodicity);
             this.createPrimitiveCell(periodicity);
         }
@@ -1701,7 +1511,7 @@ export class StructureViewer extends Viewer {
         let translation2 = this.basisVectors[dim2].clone();
         let width = 0;
         let height = 0;
-        if (this.options.allowRepeat) {
+        if (this.options.structure.allowRepeat) {
             width = this.getRepetitions(translation1, 12);
             height = this.getRepetitions(translation2, 12);
         }
@@ -1734,8 +1544,8 @@ export class StructureViewer extends Viewer {
         relPos.push.apply(relPos, newPos);
         labels.push.apply(labels, newLabels);
 
-        this.createConventionalCell(periodicity, this.options.showCell);
-        this.createPrimitiveCell(periodicity, this.options.showCell);
+        this.createConventionalCell(periodicity, this.options.structure.showCell);
+        this.createPrimitiveCell(periodicity, this.options.structure.showCell);
         this.createAtoms(relPos, labels, false);
 
         this.createLatticeParameters(this.basisVectors, periodicity, periodicIndices);
@@ -1746,10 +1556,10 @@ export class StructureViewer extends Viewer {
      * Setup the view for 3D systems (crystals)
      */
     setup3D(relPos, cartPos, labels) {
-        this.createConventionalCell([true, true, true], this.options.showCell);
-        this.createPrimitiveCell([true, true, true], this.options.showCell);
+        this.createConventionalCell([true, true, true], this.options.structure.showCell);
+        this.createPrimitiveCell([true, true, true], this.options.structure.showCell);
 
-        this.createAtoms(relPos, labels, this.options.showCopies);
+        this.createAtoms(relPos, labels, this.options.structure.showCopies);
 
         this.createLatticeParameters(this.basisVectors, [true, true, true]);
         this.setupInitialView3D();
