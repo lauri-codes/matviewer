@@ -575,22 +575,22 @@ export default class StructureViewer extends Viewer {
         let shadowMapWidth = 2048;
         // Key light
         let keyLight = new THREE.DirectionalLight(0xffffff, 0.45);
-        keyLight.shadowMapWidth = shadowMapWidth;
-        keyLight.shadowMapHeight = shadowMapWidth;
+        keyLight.shadow.mapSize.width = shadowMapWidth;
+        keyLight.shadow.mapSize.height = shadowMapWidth;
         keyLight.position.set(0, 0, 20);
         this.sceneStructure.add(keyLight);
         this.lights.push(keyLight);
         // Fill light
         let fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
-        fillLight.shadowMapWidth = shadowMapWidth;
-        fillLight.shadowMapHeight = shadowMapWidth;
+        fillLight.shadow.mapSize.width = shadowMapWidth;
+        fillLight.shadow.mapSize.height = shadowMapWidth;
         fillLight.position.set(-20, 0, -20);
         this.sceneStructure.add(fillLight);
         this.lights.push(fillLight);
         // Back light
         let backLight = new THREE.DirectionalLight(0xffffff, 0.25);
-        backLight.shadowMapWidth = shadowMapWidth;
-        backLight.shadowMapHeight = shadowMapWidth;
+        backLight.shadow.mapSize.width = shadowMapWidth;
+        backLight.shadow.mapSize.height = shadowMapWidth;
         backLight.position.set(20, 0, -20);
         //backLight.position.set( 0, 0, -20 );
         this.sceneStructure.add(backLight);
@@ -642,7 +642,7 @@ export default class StructureViewer extends Viewer {
      * Hides or shows the shadows.
      */
     toggleShadows(value) {
-        this.renderer.shadowMapEnabled = value;
+        this.renderer.shadowMap.enabled = value;
         for (let i = 0; i < this.lights.length; ++i) {
             let light = this.lights[i];
             light.castShadow = value;

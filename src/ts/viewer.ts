@@ -1,4 +1,6 @@
+import { OrthographicControls } from "./orthographiccontrols"
 declare let THREE;
+
 
 /**
  * Abstract base class for visualizing 3D scenes with three.js.
@@ -110,7 +112,6 @@ export abstract class Viewer {
             this.fitToCanvas();
         }
         this.render();
-        this.animate();
         return valid;
     }
 
@@ -336,7 +337,7 @@ export abstract class Viewer {
      */
     setupControls(
     ) {
-        let controls = new THREE.OrthographicControls(this.camera, this.rootElement);
+        let controls = new OrthographicControls(this.camera, this.rootElement);
         controls.rotateSpeed = this.options.controls.rotateSpeed;
         controls.rotationCenter = new THREE.Vector3();
         controls.zoomSpeed = this.options.controls.zoomSpeed;
@@ -349,7 +350,7 @@ export abstract class Viewer {
         controls.staticMoving = true;
         controls.dynamicDampingFactor = 0.25;
         controls.keys = [ 65, 83, 68 ];
-        controls.addEventListener( 'change', this.render.bind(this) );
+        controls.addEventListener('change', this.render.bind(this) );
         this.controls = controls;
     }
 
@@ -546,18 +547,6 @@ export abstract class Viewer {
                 this.renderer.clearDepth();
             }
         }
-    }
-
-    /*
-     * This function sets up the scene updating when mouse is moved. This way
-     * we only ask the graphics to be updated when user manipulates the scene,
-     * and not in a constantly running loop. The idea comes from
-     *
-     * https://threejs.org/examples/?q=track#misc_controls_trackball
-     */
-    animate() {
-        requestAnimationFrame(this.animate.bind(this));
-        this.controls.update();
     }
 
     /**
