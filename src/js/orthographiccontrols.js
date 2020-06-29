@@ -9,8 +9,7 @@ var changeEvent = new CustomEvent('change');
 var startEvent = new CustomEvent('start');
 var endEvent = new CustomEvent('end');
 var STATE = { NONE: -1, ROTATE: 0, ZOOM: 1, PAN: 2, TOUCH_ROTATE: 3, TOUCH_ZOOM_PAN: 4 };
-var EPS = 0.000001;
-var lastPosition = new THREE.Vector3();
+var EPS = 0.0001;
 export class OrthographicControls {
     constructor(object, domElement) {
         this._state = STATE.NONE;
@@ -39,7 +38,8 @@ export class OrthographicControls {
             this._moveCurr = new THREE.Vector2(),
             this._lastAxis = new THREE.Vector3(),
             this._lastAngle = 0,
-            this._zoomStart = new THREE.Vector2(),
+            this._lastPosition = new THREE.Vector3();
+        this._zoomStart = new THREE.Vector2(),
             this._zoomEnd = new THREE.Vector2(),
             this._touchZoomDistanceStart = 0,
             this._touchZoomDistanceEnd = 0,
@@ -51,6 +51,7 @@ export class OrthographicControls {
         this.target0 = this.target.clone();
         this.position0 = this.object.position.clone();
         this.up0 = this.object.up.clone();
+        this.zoom0 = this.object.zoom;
         this.domElement.addEventListener('contextmenu', this.contextmenu.bind(this), false);
         this.domElement.addEventListener('mousedown', this.mousedown.bind(this), false);
         this.domElement.addEventListener('mousewheel', this.mousewheel, false);
@@ -217,11 +218,22 @@ export class OrthographicControls {
         this.object.position.addVectors(this.rotationCenter, this._eye);
         this.checkDistances();
         this.object.lookAt(this.rotationCenter);
-        if (lastPosition.distanceToSquared(this.object.position) > EPS || this._zoomed) {
+        let delta = this._lastPosition.distanceToSquared(this.object.position);
+        if (delta > EPS || this._zoomed) {
             this.dispatchEvent(changeEvent);
-            lastPosition.copy(this.object.position);
+            this._lastPosition.copy(this.object.position);
             this._zoomed = false;
         }
+    }
+    ;
+    /**
+     * Saves the current configuration as the reset configuration.
+     */
+    saveReset() {
+        this.rotationCenter0.copy(this.rotationCenter);
+        this.position0.copy(this.object.position);
+        this.up0.copy(this.object.up);
+        this.zoom0 = this.object.zoom;
     }
     ;
     reset() {
@@ -232,8 +244,10 @@ export class OrthographicControls {
         this.object.up.copy(this.up0);
         this._eye.subVectors(this.object.position, this.rotationCenter);
         this.object.lookAt(this.rotationCenter);
+        this.object.zoom = this.zoom0;
+        this.object.updateProjectionMatrix();
         this.dispatchEvent(changeEvent);
-        lastPosition.copy(this.object.position);
+        this._lastPosition.copy(this.object.position);
     }
     ;
     dispose() {

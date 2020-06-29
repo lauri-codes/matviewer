@@ -6,14 +6,10 @@ export class Viewer {
     /**
      * @param {html element} hostElement is the html element where the
      *     visualization canvas will be appended.
-     * @param {boolean} saveBuffer boolean is used to indicate if the screenbuffer
-     *     should be stored for creating screenshots. When not creating
-     *     screenshots keep it off.
      * @param {options} An object that can hold custom settings for the viewer.
      */
-    constructor(hostElement, options = {}, saveBuffer = false) {
+    constructor(hostElement, options = {}) {
         this.hostElement = hostElement;
-        this.saveBuffer = saveBuffer;
         this.scenes = []; // A list of scenes that are rendered
         this.cameraWidth = 10.0; // The default "width" of the camera
         this.options = {}; // Options for the viewer. Can be e.g. used to control which settings are enabled
@@ -46,9 +42,12 @@ export class Viewer {
                 autoResize: true,
                 fitMargin: 0.5,
             },
-            font: {
-                family: "Arial"
-            },
+            style: {
+                backgroundColor: [0xffffff, 0],
+                font: {
+                    family: "Arial"
+                },
+            }
         };
         // Save custom settings
         this.fillOptions(opt, options);
@@ -175,11 +174,12 @@ export class Viewer {
     takeScreenShot(filename) {
         let imgData, imgNode;
         try {
-            let strMime = "image/jpeg";
+            let strMime = "image/png";
             let strDownloadMime = "image/octet-stream";
+            this.render();
             imgData = this.renderer.domElement.toDataURL(strMime);
             let strData = imgData.replace(strMime, strDownloadMime);
-            filename = filename + ".jpg";
+            filename = filename + ".png";
             let link = document.createElement('a');
             if (typeof link.download === 'string') {
                 document.body.appendChild(link); //Firefox requires the link to be in the body
@@ -220,16 +220,16 @@ export class Viewer {
             this.renderer = new THREE.WebGLRenderer({
                 alpha: true,
                 antialias: true,
-                preserveDrawingBuffer: this.saveBuffer
             });
         }
         else {
             console.log("WebGL is not supported on this browser, cannot display structure.");
         }
+        let bg = this.options.style.backgroundColor;
         this.renderer.shadowMap.enabled = false;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.setSize(this.rootElement.clientWidth, this.rootElement.clientHeight);
-        this.renderer.setClearColor(0xffffff, 0); // The clear color is set to fully transparent to support custom backgrounds
+        this.renderer.setClearColor(bg[0], bg[1]);
         this.rootElement.appendChild(this.renderer.domElement);
         // This is set so that multiple scenes can be used, see
         // http://stackoverflow.com/questions/12666570/how-to-change-the-zorder-of-object-with-threejs/12666937#12666937
@@ -284,6 +284,18 @@ export class Viewer {
             this.fitToCanvas();
         }
         this.render();
+    }
+    /**
+     * Used to reset the original view.
+     */
+    saveReset() {
+        this.controls.saveReset();
+    }
+    /**
+     * Used to reset the original view.
+     */
+    reset() {
+        this.controls.reset();
     }
     /*
      * Used to setup the controls that allow interacting with the visualization

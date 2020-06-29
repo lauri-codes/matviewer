@@ -11,7 +11,6 @@ var paths = {
   css: './src/css/**/*.css',
   nodemodules: [
       './node_modules/three/build/three.min.js',
-      './node_modules/dat.gui/build/dat.gui.min.js'
   ]
 };
 

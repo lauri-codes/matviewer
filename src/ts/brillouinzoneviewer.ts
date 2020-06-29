@@ -215,7 +215,7 @@ export default class BrillouinZoneViewer extends Viewer {
 
             // Draw label
             ctx.fillStyle = "#000000";
-            ctx.font = "90px "+this.options.font.family;
+            ctx.font = "90px "+this.options.style.font.family;
             ctx.textAlign = "center";
             ctx.fillText(label, size/2, size/2);
 
@@ -306,7 +306,7 @@ export default class BrillouinZoneViewer extends Viewer {
 
             // Draw label
             ctx.fillStyle = "#000000";
-            ctx.font = "100px " + this.options.font.family;
+            ctx.font = "100px " + this.options.style.font.family;
             ctx.textAlign = "center";
             ctx.fillText(label, canvas.width/2, 80);
 

@@ -2,7 +2,11 @@
 let targetElem = document.getElementById("visualizationCanvas");
 
 // Viewer options
-let options = {};
+let options = {
+  view: {
+    fitMargin: 0.02,
+  }
+};
 
 // Initialize viewer and load structure
 let viewer = new matviewer.BrillouinZoneViewer(targetElem, options);

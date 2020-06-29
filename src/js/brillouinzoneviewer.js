@@ -170,7 +170,7 @@ export default class BrillouinZoneViewer extends Viewer {
             let ctx = canvas.getContext('2d');
             // Draw label
             ctx.fillStyle = "#000000";
-            ctx.font = "90px " + this.options.font.family;
+            ctx.font = "90px " + this.options.style.font.family;
             ctx.textAlign = "center";
             ctx.fillText(label, size / 2, size / 2);
             let texture = new THREE.Texture(canvas);
@@ -251,7 +251,7 @@ export default class BrillouinZoneViewer extends Viewer {
             ctx.fill();
             // Draw label
             ctx.fillStyle = "#000000";
-            ctx.font = "100px " + this.options.font.family;
+            ctx.font = "100px " + this.options.style.font.family;
             ctx.textAlign = "center";
             ctx.fillText(label, canvas.width / 2, 80);
             let texture = new THREE.Texture(canvas);

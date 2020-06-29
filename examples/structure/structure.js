@@ -6,7 +6,7 @@ let options = {
   view: {
     autoResize: true,       // Automatically fit canvas to the root visualization element
     autoFit: true,          // Automatically set the zoom to fit the structure into the canvas
-    fitMargin: 0.1,
+    fitMargin: 0.2,
   },
   controls: {
     enableZoom: true,       // Enable zoom with mouse wheel/pinch

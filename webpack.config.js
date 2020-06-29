@@ -1,9 +1,8 @@
 const path = require('path');
 
 module.exports = {
-  mode: 'development',
   entry: [
-      './src/js/entry.js',
+      './src/js/matviewer.js',
   ],
   output: {
     path: path.resolve(__dirname, 'dist/js'),

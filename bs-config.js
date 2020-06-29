@@ -1,7 +1,6 @@
 module.exports = {
-    files: ["dist/**/*.css", "dist/**/*.js"],
+    files: ["dist/**/*.css", "dist/**/*.js", "examples/**/*.js", "examples/**/*.html"],
     server: {
         baseDir: ".",
-        index: "index.html"
-    }
+    },
 };

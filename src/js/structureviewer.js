@@ -736,10 +736,10 @@ export default class StructureViewer extends Viewer {
             // Draw label
             ctx.fillStyle = color;
             //ctx.fillStyle = "#ffffff";
-            ctx.font = "155px " + this.options.font.family;
+            ctx.font = "155px " + this.options.style.font.family;
             ctx.textAlign = "center";
             if (stroked) {
-                ctx.font = "160px " + this.options.font.family;
+                ctx.font = "160px " + this.options.style.font.family;
                 ctx.lineWidth = 8;
                 ctx.strokeStyle = "#000000";
                 ctx.strokeText(label, size / 2, size / 2);
@@ -1318,7 +1318,6 @@ export default class StructureViewer extends Viewer {
                 let j = bond[1];
                 let pos1 = this.atomPos[i];
                 let pos2 = this.atomPos[j];
-                console.log(i, j, pos1, pos2);
                 this.addBond(i, j, pos1, pos2);
             }
             // Automatically detect bonds
