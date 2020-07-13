@@ -1,3 +1,6 @@
+# IMPORTANT
+This repository has been deprecated in favour of [materia](https://github.com/lauri-codes/materia).
+
 # MatViewer
  A three.js based viewer for visualizing materials related information.
  Currently supports:
